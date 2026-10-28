@@ -173,6 +173,11 @@ input.ifade { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .yeni-form { padding: 8px 0; }
 .baglanti { border: 0; background: transparent; color: var(--vurgu); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
 tr.secili td { background: var(--bilgi-zemin); }
+.sekmeler { flex-wrap: wrap; }
+.rozet.sinif-SIFIR { background: var(--tamam-zemin); color: var(--tamam); }
+.rozet.sinif-SUPHELI, .rozet.sinif-ACIKLANMIS_TABLO_HATASI { background: var(--uyari-zemin); color: var(--uyari); }
+.rozet.sinif-KATALOG_KUSURU, .rozet.sinif-HESAP_YOK { background: var(--hata-zemin); color: var(--hata); }
+p .rozet { margin-right: 6px; }
 @media (max-width: 860px) {
   .agac-izgara { grid-template-columns: 1fr; }
   .agac { max-height: 50vh; }
@@ -209,6 +214,8 @@ tr.secili td { background: var(--bilgi-zemin); }
   <nav class="sekmeler" role="tablist" aria-label="Bölümler">
     <button id="sekme-dugme-hesap" class="sekme" type="button" role="tab">Hesap</button>
     <button id="sekme-dugme-editor" class="sekme" type="button" role="tab">Editör</button>
+    <button id="sekme-dugme-hizli" class="sekme" type="button" role="tab">Fiyat güncelle</button>
+    <button id="sekme-dugme-karsilastir" class="sekme" type="button" role="tab">Tabloyla karşılaştır</button>
   </nav>
   <div id="sekme-hesap" role="tabpanel">
     <section class="kart" aria-label="Hesap">
@@ -225,6 +232,12 @@ tr.secili td { background: var(--bilgi-zemin); }
   </div>
   <div id="sekme-editor" role="tabpanel" hidden>
     <section id="editor" class="kart" aria-label="Editör"></section>
+  </div>
+  <div id="sekme-hizli" role="tabpanel" hidden>
+    <section id="hizli" class="kart" aria-label="Fiyat güncelle"></section>
+  </div>
+  <div id="sekme-karsilastir" role="tabpanel" hidden>
+    <section id="karsilastir" class="kart" aria-label="Tabloyla karşılaştır"></section>
   </div>
   <section class="kart" aria-labelledby="geri-bildirim-baslik">
     <details id="geri-bildirim">
@@ -2541,6 +2554,8 @@ module.exports = { gunNo, gunFarki };
 })();
 // Uydurma örnek katalog (test/yardimci/cok-dalli.cjs). TÜM SAYILAR UYDURMA.
 window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı) — TÜM SAYILAR UYDURMA\",\n  \"bicim\": \"fiyat-deneme-katalog\",\n  \"bicim_surumu\": 1,\n  \"bloklar\": {\n    \"afz_adet_yolu\": {\n      \"gerekli\": [\n        \"afz_kg\",\n        \"agirlik\"\n      ],\n      \"satirlar\": [\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"afz_kg * agirlik\",\n          \"kalem\": \"afz\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ]\n    },\n    \"afz_kg_yolu\": {\n      \"gerekli\": [\n        \"afz_kg\"\n      ],\n      \"satirlar\": [\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"afz_kg\",\n          \"kalem\": \"afz\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ]\n    },\n    \"afz_mt_yolu\": {\n      \"gerekli\": [\n        \"afz_kg\",\n        \"gramaj\",\n        \"en\"\n      ],\n      \"satirlar\": [\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"afz_kg * gramaj * en / 1000\",\n          \"kalem\": \"afz\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ]\n    },\n    \"boyahane\": {\n      \"gerekli\": [\n        \"boya_ucret_acik\",\n        \"boya_ucret_koyu\",\n        \"boya_fire\",\n        \"koyu\"\n      ],\n      \"satirlar\": [\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"(boya_ucret_acik + koyu * (boya_ucret_koyu - boya_ucret_acik)) * (1 + boya_fire)\",\n          \"kalem\": \"boyahane\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ]\n    },\n    \"ham_alis\": {\n      \"gerekli\": [\n        \"ham_fiyat\",\n        \"boya_fire\"\n      ],\n      \"satirlar\": [\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"ham_fiyat * (1 + boya_fire)\",\n          \"kalem\": \"ham kumas\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ]\n    },\n    \"hazir_alis\": {\n      \"gerekli\": [\n        \"hazir_fiyat\"\n      ],\n      \"satirlar\": [\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"hazir_fiyat\",\n          \"kalem\": \"alis\",\n          \"kapsam\": \"birim_basi\",\n          \"kur\": \"alis_kuru\",\n          \"para_birimi\": \"TRY\"\n        }\n      ]\n    },\n    \"iplik_orme\": {\n      \"gerekli\": [\n        \"iplik_fiyat\",\n        \"orme_ucret\",\n        \"orme_fire\",\n        \"boya_fire\"\n      ],\n      \"satirlar\": [\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"iplik_fiyat * (1 + orme_fire) * (1 + boya_fire)\",\n          \"kalem\": \"iplik\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        },\n        {\n          \"birim\": \"yol\",\n          \"ifade\": \"orme_ucret * (1 + boya_fire)\",\n          \"kalem\": \"orme\",\n          \"kapsam\": \"birim_basi\",\n          \"kur\": \"orme_kuru\",\n          \"para_birimi\": \"TRY\"\n        }\n      ]\n    },\n    \"siparis\": {\n      \"gerekli\": [],\n      \"satirlar\": [\n        {\n          \"birim\": \"siparis\",\n          \"ifade\": \"navlun\",\n          \"kalem\": \"navlun\",\n          \"kapsam\": \"siparis_basi\",\n          \"para_birimi\": \"EUR\"\n        },\n        {\n          \"birim\": \"siparis\",\n          \"ifade\": \"ihracat_masrafi_try\",\n          \"kalem\": \"ihracat masrafi (TL)\",\n          \"kapsam\": \"siparis_basi\",\n          \"kur\": \"ihr_kuru\",\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"birim\": \"siparis\",\n          \"ifade\": \"ihracat_masrafi_eur\",\n          \"kalem\": \"ihracat masrafi (EUR)\",\n          \"kapsam\": \"siparis_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ]\n    }\n  },\n  \"dugumler\": {\n    \"agirlik_b\": {\n      \"bloklar\": [\n        \"hazir_alis\",\n        \"afz_adet_yolu\",\n        \"siparis\"\n      ],\n      \"cocuklar\": [],\n      \"girdi\": {\n        \"ad\": \"agirlik\",\n        \"adim\": \"0.01\",\n        \"birim\": \"kg/adet\",\n        \"max\": \"5\",\n        \"min\": \"0.1\"\n      },\n      \"label_en\": \"Weight\",\n      \"label_tr\": \"Ağırlık\",\n      \"tur\": \"girdi\"\n    },\n    \"baslangic\": {\n      \"cocuklar\": [\n        \"iplikten_suprem\",\n        \"hamdan_pike_mt\",\n        \"hamdan_suprem_kg\"\n      ],\n      \"label_en\": \"Start\",\n      \"label_tr\": \"Başlangıç\",\n      \"tur\": \"soru\"\n    },\n    \"bitmis_urun\": {\n      \"cocuklar\": [\n        \"agirlik_b\"\n      ],\n      \"fiyat_birimi\": \"adet\",\n      \"label_en\": \"Finished goods\",\n      \"label_tr\": \"Bitmiş ürün\",\n      \"parametre_rumuzlari\": {\n        \"afz_kg\": \"afz_kg_konfeksiyon\",\n        \"hazir_fiyat\": \"hazir_fiyat_bornoz\"\n      },\n      \"tur\": \"secenek\"\n    },\n    \"en_p\": {\n      \"bloklar\": [\n        \"ham_alis\",\n        \"afz_mt_yolu\"\n      ],\n      \"cocuklar\": [],\n      \"devam\": \"renk_grubu\",\n      \"girdi\": {\n        \"ad\": \"en\",\n        \"adim\": \"0.01\",\n        \"birim\": \"m\",\n        \"max\": \"3\",\n        \"min\": \"0.5\"\n      },\n      \"label_en\": \"Width\",\n      \"label_tr\": \"En\",\n      \"tur\": \"girdi\"\n    },\n    \"gramaj_p\": {\n      \"cocuklar\": [\n        \"en_p\"\n      ],\n      \"girdi\": {\n        \"ad\": \"gramaj\",\n        \"adim\": \"10\",\n        \"birim\": \"g/m2\",\n        \"max\": \"400\",\n        \"min\": \"100\"\n      },\n      \"label_en\": \"GSM\",\n      \"label_tr\": \"Gramaj\",\n      \"tur\": \"girdi\"\n    },\n    \"hamdan_pike_mt\": {\n      \"cocuklar\": [\n        \"gramaj_p\"\n      ],\n      \"fiyat_birimi\": \"mt\",\n      \"label_en\": \"Pique from greige (m)\",\n      \"label_tr\": \"Ham pike (mt)\",\n      \"parametre_rumuzlari\": {\n        \"boya_fire\": \"boya_fire_pike\",\n        \"boya_ucret_acik\": \"boya_ucret_pike_acik_mt\",\n        \"boya_ucret_koyu\": \"boya_ucret_pike_koyu_mt\",\n        \"ham_fiyat\": \"ham_fiyat_pike_mt\"\n      },\n      \"tur\": \"secenek\"\n    },\n    \"hamdan_suprem_kg\": {\n      \"bloklar\": [\n        \"ham_alis\",\n        \"afz_kg_yolu\"\n      ],\n      \"cocuklar\": [],\n      \"devam\": \"renk_grubu\",\n      \"fiyat_birimi\": \"kg\",\n      \"label_en\": \"Jersey from greige (kg)\",\n      \"label_tr\": \"Ham süprem (kg)\",\n      \"parametre_rumuzlari\": {\n        \"boya_fire\": \"boya_fire_suprem\",\n        \"boya_ucret_acik\": \"boya_ucret_suprem_acik_kg\",\n        \"boya_ucret_koyu\": \"boya_ucret_suprem_koyu_kg\",\n        \"ham_fiyat\": \"ham_fiyat_suprem_kg\"\n      },\n      \"tur\": \"secenek\"\n    },\n    \"iplikten_suprem\": {\n      \"bloklar\": [\n        \"iplik_orme\",\n        \"afz_kg_yolu\"\n      ],\n      \"cocuklar\": [],\n      \"devam\": \"renk_grubu\",\n      \"fiyat_birimi\": \"kg\",\n      \"label_en\": \"Jersey from yarn\",\n      \"label_tr\": \"İplikten süprem\",\n      \"parametre_rumuzlari\": {\n        \"boya_fire\": \"boya_fire_suprem\",\n        \"boya_ucret_acik\": \"boya_ucret_suprem_acik_kg\",\n        \"boya_ucret_koyu\": \"boya_ucret_suprem_koyu_kg\",\n        \"iplik_fiyat\": \"iplik_fiyat_penye\",\n        \"orme_fire\": \"orme_fire_suprem\",\n        \"orme_ucret\": \"orme_ucret_suprem\"\n      },\n      \"tur\": \"secenek\"\n    },\n    \"top_kumas\": {\n      \"cocuklar\": [\n        \"baslangic\"\n      ],\n      \"label_en\": \"Piece goods\",\n      \"label_tr\": \"Top kumaş\",\n      \"parametre_rumuzlari\": {\n        \"afz_kg\": \"afz_kg_top_kumas\"\n      },\n      \"tur\": \"secenek\"\n    },\n    \"urun\": {\n      \"cocuklar\": [\n        \"top_kumas\",\n        \"bitmis_urun\"\n      ],\n      \"label_en\": \"Product\",\n      \"label_tr\": \"Ürün\",\n      \"tur\": \"soru\"\n    }\n  },\n  \"durum\": \"taslak\",\n  \"katalog_surumu\": 0,\n  \"kok\": \"urun\",\n  \"marj\": {\n    \"asgari_adet\": \"1\",\n    \"kademeler\": [\n      {\n        \"alt\": \"1\",\n        \"oran\": \"20\",\n        \"ust\": null\n      }\n    ]\n  },\n  \"parametreler\": {\n    \"afz_kg_konfeksiyon\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.7\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"ucret\"\n    },\n    \"afz_kg_top_kumas\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.3\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"ucret\"\n    },\n    \"boya_fire_pike\": {\n      \"aciklama\": \"çarpan: × (1 + oran)\",\n      \"birim\": \"oran\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"\",\n          \"deger\": \"0.15\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"\",\n          \"kaynak_turu\": \"\",\n          \"not\": \"\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_en\": \"Dyeing loss (pique)\",\n      \"label_tr\": \"Boya firesi (pike)\",\n      \"para_birimi\": null,\n      \"tur\": \"oran\"\n    },\n    \"boya_fire_suprem\": {\n      \"aciklama\": \"çarpan: × (1 + oran)\",\n      \"birim\": \"oran\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"\",\n          \"deger\": \"0.2\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"\",\n          \"kaynak_turu\": \"\",\n          \"not\": \"\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Boya firesi (süprem)\",\n      \"para_birimi\": null,\n      \"tur\": \"oran\"\n    },\n    \"boya_ucret_pike_acik_mt\": {\n      \"birim\": \"mt\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.5\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"ucret\"\n    },\n    \"boya_ucret_pike_koyu_mt\": {\n      \"birim\": \"mt\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.6\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"ucret\"\n    },\n    \"boya_ucret_suprem_acik_kg\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1.2\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"ucret\"\n    },\n    \"boya_ucret_suprem_koyu_kg\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1.5\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"ucret\"\n    },\n    \"ham_fiyat_pike_mt\": {\n      \"birim\": \"mt\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1.2\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Ham pike fiyatı\",\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"fiyat\"\n    },\n    \"ham_fiyat_suprem_kg\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"4\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"fiyat\"\n    },\n    \"hazir_fiyat_bornoz\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"880\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"iplik_fiyat_penye\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"3\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"fiyat\"\n    },\n    \"orme_fire_suprem\": {\n      \"aciklama\": \"çarpan: × (1 + oran)\",\n      \"birim\": \"oran\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"\",\n          \"deger\": \"0.05\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"\",\n          \"kaynak_turu\": \"\",\n          \"not\": \"\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": null,\n      \"tur\": \"oran\"\n    },\n    \"orme_ucret_suprem\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"21\",\n          \"giren\": \"test\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma tedarikci\",\n          \"kaynak_turu\": \"teklif\",\n          \"not\": \"test\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"ucret\"\n    }\n  },\n  \"sablonlar\": {\n    \"renk_grubu\": {\n      \"dugumler\": {\n        \"acik\": {\n          \"bloklar\": [\n            \"boyahane\",\n            \"siparis\"\n          ],\n          \"cocuklar\": [],\n          \"label_en\": \"Light\",\n          \"label_tr\": \"Açık\",\n          \"ozellikler\": {\n            \"koyu\": \"0\"\n          },\n          \"tur\": \"secenek\"\n        },\n        \"koyu\": {\n          \"bloklar\": [\n            \"boyahane\",\n            \"siparis\"\n          ],\n          \"cocuklar\": [],\n          \"label_en\": \"Dark\",\n          \"label_tr\": \"Koyu\",\n          \"ozellikler\": {\n            \"koyu\": \"1\"\n          },\n          \"tur\": \"secenek\"\n        },\n        \"renk\": {\n          \"cocuklar\": [\n            \"acik\",\n            \"koyu\"\n          ],\n          \"label_en\": \"Colour group\",\n          \"label_tr\": \"Renk grubu\",\n          \"tur\": \"soru\"\n        }\n      },\n      \"gerekli\": [\n        \"boya_fire\",\n        \"boya_ucret_acik\",\n        \"boya_ucret_koyu\"\n      ],\n      \"kok\": \"renk\"\n    }\n  },\n  \"siparis_girdileri\": [\n    {\n      \"ad\": \"navlun\",\n      \"birim\": \"EUR\",\n      \"label_en\": \"Freight\",\n      \"label_tr\": \"Navlun\",\n      \"max\": \"100000\",\n      \"min\": \"0\"\n    },\n    {\n      \"ad\": \"ihracat_masrafi_try\",\n      \"birim\": \"TRY\",\n      \"label_en\": \"Export costs (TRY)\",\n      \"label_tr\": \"İhracat masrafı (TL)\",\n      \"max\": \"10000000\",\n      \"min\": \"0\",\n      \"varsayilan\": \"0\"\n    },\n    {\n      \"ad\": \"ihracat_masrafi_eur\",\n      \"birim\": \"EUR\",\n      \"label_en\": \"Export costs (EUR)\",\n      \"label_tr\": \"İhracat masrafı (EUR)\",\n      \"max\": \"100000\",\n      \"min\": \"0\",\n      \"varsayilan\": \"0\"\n    }\n  ]\n}\n";
+// Uydurma karşılaştırma dosyası (test/yardimci/karsilastirma-ornek.cjs). TÜM SAYILAR UYDURMA.
+window.KUTU_ORNEK_KARSILASTIRMA = "{\n  \"bicim\": \"fiyat-deneme-karsilastirma\",\n  \"bicim_surumu\": 1,\n  \"aciklama\": \"Uydurma örnek: tablo hücreleri uydurma, Excel kayan noktası taklit edildi.\",\n  \"vakalar\": [\n    {\n      \"ad\": \"iplikten süprem kg (tablo ile aynı)\",\n      \"kaynak\": \"uydurma tablo 1, Sayfa1!H20\",\n      \"istek\": {\n        \"yol\": [\n          \"urun\",\n          \"top_kumas\",\n          \"baslangic\",\n          \"iplikten_suprem\",\n          \"renk\",\n          \"acik\"\n        ],\n        \"girdiler\": {\n          \"navlun\": \"1000\",\n          \"ihracat_masrafi_try\": \"4000\",\n          \"gramaj\": \"200\",\n          \"en\": \"1.5\",\n          \"agirlik\": \"0.6\"\n        },\n        \"teklif_para_birimi\": \"EUR\",\n        \"kurlar\": {\n          \"para\": {\n            \"USD\": \"35\",\n            \"EUR\": \"40\"\n          },\n          \"adli\": {\n            \"orme_kuru\": \"42\",\n            \"alis_kuru\": \"44\",\n            \"ihr_kuru\": \"40\"\n          }\n        },\n        \"hesap_tarihi\": \"2026-10-28\",\n        \"adet\": \"1000\"\n      },\n      \"beklenen\": {\n        \"birim_maliyet\": \"7.220000000000001\",\n        \"satirlar\": {\n          \"iplik\": \"3.78\",\n          \"orme\": \"0.6\",\n          \"boyahane\": \"1.44\"\n        }\n      }\n    },\n    {\n      \"ad\": \"ham süprem kg (tabloda ham × boya çarpılmış)\",\n      \"kaynak\": \"uydurma tablo 2, Sayfa1!G4\",\n      \"istek\": {\n        \"yol\": [\n          \"urun\",\n          \"top_kumas\",\n          \"baslangic\",\n          \"hamdan_suprem_kg\",\n          \"renk\",\n          \"koyu\"\n        ],\n        \"girdiler\": {\n          \"navlun\": \"1000\",\n          \"ihracat_masrafi_try\": \"4000\",\n          \"gramaj\": \"200\",\n          \"en\": \"1.5\",\n          \"agirlik\": \"0.6\"\n        },\n        \"teklif_para_birimi\": \"EUR\",\n        \"kurlar\": {\n          \"para\": {\n            \"USD\": \"35\",\n            \"EUR\": \"40\"\n          },\n          \"adli\": {\n            \"orme_kuru\": \"42\",\n            \"alis_kuru\": \"44\",\n            \"ihr_kuru\": \"40\"\n          }\n        },\n        \"hesap_tarihi\": \"2026-10-28\",\n        \"adet\": \"1000\"\n      },\n      \"beklenen\": {\n        \"birim_maliyet\": \"10.04\",\n        \"satirlar\": {\n          \"ham kumas\": \"4.8\"\n        }\n      },\n      \"niyet\": {\n        \"birim_maliyet\": \"8\",\n        \"aciklama\": \"G4 ham ile boyayı çarpıyor; toplama olmalı\"\n      }\n    },\n    {\n      \"ad\": \"ham süprem kg (aynı hata, onaylı)\",\n      \"kaynak\": \"uydurma tablo 2, Sayfa2!G4\",\n      \"istek\": {\n        \"yol\": [\n          \"urun\",\n          \"top_kumas\",\n          \"baslangic\",\n          \"hamdan_suprem_kg\",\n          \"renk\",\n          \"koyu\"\n        ],\n        \"girdiler\": {\n          \"navlun\": \"1000\",\n          \"ihracat_masrafi_try\": \"4000\",\n          \"gramaj\": \"200\",\n          \"en\": \"1.5\",\n          \"agirlik\": \"0.6\"\n        },\n        \"teklif_para_birimi\": \"EUR\",\n        \"kurlar\": {\n          \"para\": {\n            \"USD\": \"35\",\n            \"EUR\": \"40\"\n          },\n          \"adli\": {\n            \"orme_kuru\": \"42\",\n            \"alis_kuru\": \"44\",\n            \"ihr_kuru\": \"40\"\n          }\n        },\n        \"hesap_tarihi\": \"2026-10-28\",\n        \"adet\": \"1000\"\n      },\n      \"beklenen\": {\n        \"birim_maliyet\": \"10.04\"\n      },\n      \"niyet\": {\n        \"birim_maliyet\": \"8\",\n        \"aciklama\": \"onaylandı\"\n      },\n      \"onay\": true\n    },\n    {\n      \"ad\": \"bitmiş ürün adet (katalogda AFZ eksik gibi)\",\n      \"kaynak\": \"uydurma tablo 3\",\n      \"istek\": {\n        \"yol\": [\n          \"urun\",\n          \"bitmis_urun\",\n          \"agirlik_b\"\n        ],\n        \"girdiler\": {\n          \"navlun\": \"1000\",\n          \"ihracat_masrafi_try\": \"4000\",\n          \"gramaj\": \"200\",\n          \"en\": \"1.5\",\n          \"agirlik\": \"0.6\"\n        },\n        \"teklif_para_birimi\": \"EUR\",\n        \"kurlar\": {\n          \"para\": {\n            \"USD\": \"35\",\n            \"EUR\": \"40\"\n          },\n          \"adli\": {\n            \"orme_kuru\": \"42\",\n            \"alis_kuru\": \"44\",\n            \"ihr_kuru\": \"40\"\n          }\n        },\n        \"hesap_tarihi\": \"2026-10-28\",\n        \"adet\": \"1000\"\n      },\n      \"beklenen\": {\n        \"birim_maliyet\": \"21.94\",\n        \"satirlar\": {\n          \"afz\": \"0.84\"\n        }\n      }\n    },\n    {\n      \"ad\": \"ham pike mt (navlun girilmemiş)\",\n      \"kaynak\": \"uydurma tablo 4\",\n      \"istek\": {\n        \"yol\": [\n          \"urun\",\n          \"top_kumas\",\n          \"baslangic\",\n          \"hamdan_pike_mt\",\n          \"gramaj_p\",\n          \"en_p\",\n          \"renk\",\n          \"koyu\"\n        ],\n        \"girdiler\": {\n          \"gramaj\": \"200\",\n          \"en\": \"1.5\"\n        },\n        \"teklif_para_birimi\": \"EUR\",\n        \"kurlar\": {\n          \"para\": {\n            \"USD\": \"35\",\n            \"EUR\": \"40\"\n          },\n          \"adli\": {\n            \"orme_kuru\": \"42\",\n            \"alis_kuru\": \"44\",\n            \"ihr_kuru\": \"40\"\n          }\n        },\n        \"hesap_tarihi\": \"2026-10-28\",\n        \"adet\": \"1000\"\n      },\n      \"beklenen\": {\n        \"birim_maliyet\": \"3.26\"\n      }\n    }\n  ]\n}\n";
 // Ekranın saf yardımcıları: seçim yolu, yoldaki satırlar ve adlı kurlar, istek kurma, Türkçe
 // iletiler. DOM yok; Node testinde (test/ekran.test.cjs) ve tarayıcıda aynı kod çalışır.
 (function (kok, kur) {
@@ -3296,6 +3311,53 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
     return adlar;
   }
 
+  // Parametre → kullanıldığı yerler ("blok boyahane", "düğüm en_p", "renk_grubu:acik", rumuzla
+  // bağlandığı düğümler "düğüm hamdan_pike_mt (rumuz boya_fire)"). Güncellemeden önce etkiyi göstermek için.
+  function parametreKullanimi(k, F) {
+    const yerler = Object.create(null);
+    const ekle = function (ad, yer) {
+      if (!kendi(k.parametreler, ad)) return;
+      if (!yerler[ad]) yerler[ad] = [];
+      if (yerler[ad].indexOf(yer) === -1) yerler[ad].push(yer);
+    };
+    const formulden = function (liste, yer) {
+      for (const s of liste || []) {
+        let cozum = null;
+        try { cozum = F.cozumle(s.ifade); } catch (e) { if (!e || !e.kod) throw e; }
+        if (cozum) for (const a of cozum.adlar) ekle(a, yer);
+      }
+    };
+    const dugumler = function (alan, dl) {
+      for (const a of Object.keys(dl)) {
+        const yer = (alan ? alan + ':' : 'düğüm ') + a;
+        formulden(dl[a].satirlar, yer);
+        const rz = dl[a].parametre_rumuzlari || {};
+        for (const r of Object.keys(rz)) ekle(rz[r], yer + ' (rumuz ' + r + ')');
+      }
+    };
+    dugumler('', k.dugumler);
+    for (const s of Object.keys(k.sablonlar || {})) dugumler(s, k.sablonlar[s].dugumler);
+    for (const b of Object.keys(k.bloklar || {})) formulden(k.bloklar[b].satirlar, 'blok ' + b);
+    return yerler;
+  }
+
+  // Hızlı güncelleme (şartname §5): birden çok parametreye yeni yürürlük değeri, ortak kaynak/tür/
+  // tarih/not ile. Ya hepsi eklenir ya hiçbiri (tek geri al adımı). Yayınlanmış katalogda da çalışır
+  // (değer geçmişi yayın dışıdır). satirlar: [{ ad, deger }] (deger çekirdek ondalık metni).
+  function topluDegerEkle(k, C, satirlar, ortak, sistem) {
+    if (!satirlar.length) throw hata('DEGISIKLIK_YOK');
+    let y = k;
+    for (const s of satirlar) {
+      try {
+        y = C.parametre.degerEkle(y, s.ad, Object.assign({}, ortak, { deger: s.deger }), sistem);
+      } catch (e) {
+        if (!e || !e.kod) throw e;
+        throw hata('DEGER_REDDEDILDI', Object.assign({ ad: s.ad, neden: e.kod }, e.ayrinti && e.ayrinti.alanlar ? { alanlar: e.ayrinti.alanlar } : {}));
+      }
+    }
+    return { katalog: y, eklenen: satirlar.length };
+  }
+
   const PARAMETRE_YAMA = ['tur', 'birim', 'para_birimi', 'bayat_gun', 'aciklama', 'label_en', 'label_tr'];
   function parametreEkle(k, ad, tanim) {
     const y = taslak(k);
@@ -3441,7 +3503,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
     dugumEkle, dugumSil, dugumTasi, sirala, dalKopyala, dugumCogalt, dugumGuncelle,
     blokKullananlar, blokEkle, blokGuncelle, blokSil, sablonEkle, sablonGuncelle, sablonSil,
     parametreEkle, parametreGuncelle, parametreSil, siparisGirdisiKoy, siparisGirdisiSil, marjGuncelle, katalogAdi,
-    kapsam, formulDenetle, secimHaritasi, agacListesi, formulAdlari,
+    kapsam, formulDenetle, secimHaritasi, agacListesi, formulAdlari, parametreKullanimi, topluDegerEkle,
   };
 });
 
@@ -4112,6 +4174,370 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
   kok.KutuEditor = { kur, ciz, denetimGeldi, durum: ed };
 })(this);
 
+// Gerçek tablo karşılaştırması (K4a, Fable K4 çıtası). DOM yok; Node aracı (araclar/karsilastir.cjs),
+// test ve ekran aynı kodu kullanır. Karşılaştırma dosyası GERÇEK veri taşıyabilir: yalnız _ozel'de durur.
+//
+// Biçim: { bicim: "fiyat-deneme-karsilastirma", bicim_surumu: 1, vakalar: [Vaka] }
+// Vaka: { ad, kaynak?, istek (çekirdek hesap isteği), beklenen: Beklenen, niyet?: Beklenen & { aciklama },
+//         onay?: true (tablo hatası kullanıcı/ihracat satış onaylı), tolerans?: "0.000001", tolerans_gerekce?, not? }
+// Beklenen: { birim_maliyet?, birim_fiyat?, toplam_maliyet?, toplam?, satirlar?: { kalem: birim başına tutar } }
+// Değerler ondalık METİN (Excel'den gelen 12 haneden uzun değer 12 haneye yuvarlanarak okunur).
+//
+// Sınıf (tam biri): SIFIR (hücre değeri tolerans içinde) | SUPHELI (hücre tutmuyor, niyet tutuyor, onay yok) |
+// ACIKLANMIS_TABLO_HATASI (aynısı, onaylı) | KATALOG_KUSURU (ne hücre ne niyet) | HESAP_YOK (fiyat yok / hata).
+// "Yaklaşık aynı" yoktur: tolerans vaka başına yazılır, gerekçesiz tolerans 1e-6 (Excel kayan noktası).
+(function (kok, kur) {
+  const m = kur();
+  if (typeof module === 'object' && module.exports) module.exports = m;
+  else kok.KutuKarsilastir = m;
+})(this, function () {
+  'use strict';
+
+  const BICIM = 'fiyat-deneme-karsilastirma';
+  const VARSAYILAN_TOLERANS = '0.000001';
+  const ALANLAR = ['birim_maliyet', 'birim_fiyat', 'toplam_maliyet', 'toplam'];
+  const SINIFLAR = ['SIFIR', 'SUPHELI', 'ACIKLANMIS_TABLO_HATASI', 'KATALOG_KUSURU', 'HESAP_YOK'];
+
+  function KarsilastirmaHatasi(kod, ayrinti) {
+    this.name = 'KarsilastirmaHatasi';
+    this.kod = kod;
+    this.ayrinti = ayrinti || {};
+    this.message = kod + (ayrinti ? ' ' + JSON.stringify(ayrinti) : '');
+  }
+  KarsilastirmaHatasi.prototype = Object.create(Error.prototype);
+  const nesneMi = function (x) { return x !== null && typeof x === 'object' && !Array.isArray(x); };
+
+  // "7.300311111111112" → "7.300311111111" (12 hane, yarım-sıfırdan-uzağa); bilimsel gösterim reddedilir.
+  function onIkiHane(metin) {
+    const s = String(metin).trim();
+    const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(s);
+    if (!m) throw new KarsilastirmaHatasi('SAYI_GECERSIZ', { deger: s });
+    const kesir = m[3] || '';
+    if (kesir.length <= 12) return s;
+    let tam = BigInt(m[2] + kesir.slice(0, 12));
+    if (Number(kesir.charAt(12)) >= 5) tam += 1n;
+    const t = tam.toString().padStart(13, '0');
+    return m[1] + t.slice(0, t.length - 12) + '.' + t.slice(t.length - 12);
+  }
+
+  function dosyaOku(metin) {
+    let x;
+    try { x = JSON.parse(metin); } catch (e) { throw new KarsilastirmaHatasi('JSON_DEGIL'); }
+    if (!nesneMi(x) || x.bicim !== BICIM) throw new KarsilastirmaHatasi('BICIM_TANIMSIZ');
+    if (x.bicim_surumu !== 1) throw new KarsilastirmaHatasi('SURUM_UYUMSUZ');
+    if (!Array.isArray(x.vakalar) || !x.vakalar.length) throw new KarsilastirmaHatasi('VAKA_YOK');
+    x.vakalar.forEach(function (v, i) {
+      if (!nesneMi(v) || typeof v.ad !== 'string' || !nesneMi(v.istek) || !nesneMi(v.beklenen)) throw new KarsilastirmaHatasi('VAKA_BICIMI', { sira: i });
+      if (v.niyet !== undefined && !nesneMi(v.niyet)) throw new KarsilastirmaHatasi('VAKA_BICIMI', { sira: i, alan: 'niyet' });
+    });
+    return x;
+  }
+
+  // Beklenen ↔ bulunan: [{ alan, beklenen, bulunan, fark, tamam }]
+  function olc(D, sonuc, beklenen, tolerans) {
+    const liste = [];
+    const tol = D.oku(onIkiHane(tolerans));
+    const ekleOlcu = function (alan, b, bulunanMetin) {
+      const bb = D.oku(onIkiHane(b));
+      if (bulunanMetin === null || bulunanMetin === undefined) {
+        liste.push({ alan, beklenen: String(b), bulunan: null, fark: null, tamam: false });
+        return;
+      }
+      const f = D.cikar(D.oku(bulunanMetin), bb);
+      const mutlak = f < 0n ? -f : f;
+      liste.push({ alan, beklenen: String(b), bulunan: bulunanMetin, fark: D.metne(f, 6), tamam: mutlak <= tol });
+    };
+    for (const a of ALANLAR) if (beklenen[a] !== undefined) ekleOlcu(a, beklenen[a], sonuc[a] === undefined ? null : sonuc[a]);
+    const satirlar = beklenen.satirlar || {};
+    for (const kalem of Object.keys(satirlar)) {
+      const eslesen = (sonuc.satirlar || []).filter(function (s) { return s.kalem === kalem; });
+      const toplam = eslesen.length ? D.metne(eslesen.reduce(function (t, s) { return D.topla(t, D.oku(s.birim_basina)); }, 0n), 6) : null;
+      ekleOlcu('satir:' + kalem, satirlar[kalem], toplam);
+    }
+    return liste;
+  }
+
+  function karsilastir(C, katalog, vaka) {
+    const sonuc = C.hesapla(katalog, vaka.istek);
+    const tolerans = vaka.tolerans || VARSAYILAN_TOLERANS;
+    const r = { ad: vaka.ad, kaynak: vaka.kaynak || '', tolerans, sonuc, hucre: [], niyet: null, sinif: null };
+    if (sonuc.durum !== 'tamam') { r.sinif = 'HESAP_YOK'; return r; }
+    r.hucre = olc(C.ondalik, sonuc, vaka.beklenen, tolerans);
+    if (!r.hucre.length) throw new KarsilastirmaHatasi('BEKLENEN_BOS', { ad: vaka.ad });
+    if (r.hucre.every(function (x) { return x.tamam; })) { r.sinif = 'SIFIR'; return r; }
+    if (vaka.niyet) {
+      r.niyet = olc(C.ondalik, sonuc, vaka.niyet, tolerans);
+      if (r.niyet.length && r.niyet.every(function (x) { return x.tamam; })) {
+        r.sinif = vaka.onay === true ? 'ACIKLANMIS_TABLO_HATASI' : 'SUPHELI';
+        return r;
+      }
+    }
+    r.sinif = 'KATALOG_KUSURU';
+    return r;
+  }
+
+  function hepsi(C, katalog, dosya) {
+    const sonuclar = dosya.vakalar.map(function (v) { return karsilastir(C, katalog, v); });
+    const sayim = {};
+    for (const s of SINIFLAR) sayim[s] = 0;
+    for (const s of sonuclar) sayim[s.sinif]++;
+    return { sonuclar, sayim, temiz: sayim.KATALOG_KUSURU === 0 && sayim.HESAP_YOK === 0 };
+  }
+
+  const SINIF_METNI = {
+    SIFIR: 'SIFIR — hücre değeriyle aynı',
+    SUPHELI: 'ŞÜPHELİ — tablo formülü hatalı görünüyor (niyet tutuyor), onay bekliyor',
+    ACIKLANMIS_TABLO_HATASI: 'AÇIKLANMIŞ TABLO HATASI — onaylı',
+    KATALOG_KUSURU: 'KATALOG KUSURU — ne hücre ne niyet tutuyor',
+    HESAP_YOK: 'HESAP YOK — fiyat çıkmadı ya da hata',
+  };
+
+  return { BICIM, SINIFLAR, SINIF_METNI, VARSAYILAN_TOLERANS, KarsilastirmaHatasi, onIkiHane, dosyaOku, karsilastir, hepsi };
+});
+
+// Hızlı parametre güncelleme (K4a, şartname §5 ve §3.6): fiyat/ücret/oran listesi; her satırda güncel
+// değer, son güncelleme (alınma) tarihi, kaynak, kaç gün önce, kullanıldığı yerler ve yeni değer kutusu.
+// Kaynak/tür/alınma tarihi/not/giren ORTAK alanlarda bir kez yazılır; "Değerleri ekle" hepsini tek
+// adımda ekler (ya hep ya hiç, geri alınabilir). Yayınlanmış katalogda da çalışır: yayın gerekmez.
+(function (kok) {
+  'use strict';
+  let api = null;
+  const ek = { arama: '', yalnizBayat: false, tur: '', yeni: {}, ortak: null, ileti: null };
+  const KAYNAK_TURLERI = ['teklif', 'fatura', 'telefon', 'whatsapp', 'diger'];
+
+  function kur(a) { api = a; }
+
+  function gunFarki(tarih, bugun) {
+    const a = Date.parse(tarih + 'T00:00:00Z');
+    const b = Date.parse(bugun + 'T00:00:00Z');
+    return isNaN(a) || isNaN(b) ? null : Math.round((b - a) / 86400000);
+  }
+
+  function ciz() {
+    const kap = document.getElementById('hizli');
+    if (!api || !kap || !api.durum.katalog) return;
+    const { C, A, durum, el, ekle, bosalt } = api;
+    const Z = kok.KutuDuzen;
+    const k = durum.katalog;
+    const tarih = durum.hesap_tarihi;
+    if (!ek.ortak) ek.ortak = { yururluk: api.bugun(), kaynak: '', kaynak_turu: 'teklif', alinma_tarihi: api.bugun(), not: '' };
+    const odak = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-odak');
+    bosalt(kap);
+
+    const kullanim = Z.parametreKullanimi(k, C.formul);
+    const ara = ek.arama.toLocaleLowerCase('tr');
+    const satirlar = Object.keys(k.parametreler).sort().map(function (ad) {
+      const p = k.parametreler[ad];
+      const y = C.parametre.yururluktekiSatir(p, tarih);
+      const s = y ? y.satir : null;
+      const gun = s && s.alinma_tarihi ? gunFarki(s.alinma_tarihi, tarih) : null;
+      const esik = C.parametre.bayatEsigi(p);
+      const bayat = esik !== null && (!s || gun === null || gun > esik);
+      return { ad, p, s, gun, esik, bayat, etiket: A.parametreEtiketi(k, ad), yerler: kullanim[ad] || [] };
+    }).filter(function (x) {
+      if (ek.yalnizBayat && !x.bayat) return false;
+      if (ek.tur && x.p.tur !== ek.tur) return false;
+      return !ara || (x.ad + ' ' + x.etiket + ' ' + (x.s ? x.s.kaynak : '')).toLocaleLowerCase('tr').indexOf(ara) !== -1;
+    });
+
+    ekle(kap, el('h2', { metin: 'Hızlı parametre güncelleme' }),
+      el('p', { sinif: 'soluk', metin: 'Değer geçmişi değişmez: her yeni değer yeni bir yürürlük satırıdır. Yayınlanmış katalogda da çalışır (yayın gerekmez). Güncel değer ve bayatlık hesap tarihine (' + tarih + ') göredir.' }));
+
+    const arama = el('input', { type: 'search', value: ek.arama, placeholder: 'ara: ad, etiket, kaynak', 'data-odak': 'hizli-ara' });
+    arama.addEventListener('input', function () { ek.arama = arama.value; ciz(); });
+    const tur = el('select', { onchange: function () { ek.tur = tur.value; ciz(); } },
+      [['', 'tüm türler'], ['fiyat', 'fiyat'], ['ucret', 'ücret'], ['oran', 'oran'], ['sabit', 'sabit']].map(function (o) { return el('option', { value: o[0], metin: o[1] }); }));
+    tur.value = ek.tur;
+    ekle(kap, el('div', { sinif: 'satir-ici sarmal' }, arama, tur,
+      el('label', { sinif: 'onay' }, el('input', { type: 'checkbox', checked: ek.yalnizBayat, onchange: function (e) { ek.yalnizBayat = e.target.checked; ciz(); } }), ' yalnız bayat')));
+
+    // ortak alanlar
+    const o = ek.ortak;
+    const kutu = function (a, oz) { return el('input', Object.assign({ type: 'text', value: o[a], 'data-odak': 'hizli-ortak-' + a, oninput: function (e) { o[a] = e.target.value; } }, oz || {})); };
+    const tarihKutusu = function (a) { return el('input', { type: 'date', value: o[a], 'data-odak': 'hizli-ortak-' + a, onchange: function (e) { o[a] = e.target.value; } }); };
+    const turSec = el('select', { onchange: function () { o.kaynak_turu = turSec.value; } }, [['', '—']].concat(KAYNAK_TURLERI.map(function (t) { return [t, t]; })).map(function (x) { return el('option', { value: x[0], metin: x[1] }); }));
+    turSec.value = o.kaynak_turu;
+    const giren = el('input', { type: 'text', value: durum.giren, placeholder: 'adınız', 'data-odak': 'hizli-giren', oninput: function (e) { durum.giren = e.target.value; } });
+    const alan = function (et, k2) { return el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: et }), k2); };
+    ekle(kap, el('div', { sinif: 'kart-ic' }, el('h4', { metin: 'Yeni değerlerin ortak bilgisi (fiyat/ücrette hepsi zorunlu)' }),
+      el('div', { sinif: 'satir-ici sarmal' },
+        alan('Kaynak *', kutu('kaynak', { placeholder: 'kimden' })), alan('Kaynak türü *', turSec),
+        alan('Alınma tarihi *', tarihKutusu('alinma_tarihi')), alan('Yürürlük', tarihKutusu('yururluk')),
+        alan('Not *', kutu('not')), alan('Giren *', giren))));
+
+    // tablo
+    const govde = el('tbody');
+    for (const x of satirlar) {
+      const yeni = el('input', { type: 'text', inputMode: 'decimal', value: ek.yeni[x.ad] || '', placeholder: x.s ? x.s.deger : '', 'data-odak': 'hizli-yeni-' + x.ad, 'aria-label': x.ad + ' yeni değer' });
+      const not = el('small', { sinif: 'uyari-metni', hidden: true });
+      const denetle = function () {
+        const d = A.sayiDenetle(yeni.value);
+        yeni.classList.toggle('gecersiz', !!d.hata);
+        not.hidden = !d.hata;
+        not.textContent = d.hata || '';
+      };
+      yeni.addEventListener('input', function () { ek.yeni[x.ad] = yeni.value; denetle(); sayacCiz(); });
+      denetle();
+      ekle(govde, el('tr', { sinif: x.bayat ? 'bayat' : null },
+        el('td', null, el('div', { metin: x.ad }), x.etiket !== x.ad ? el('small', { sinif: 'soluk', metin: x.etiket }) : null),
+        el('td', { metin: x.p.tur }),
+        el('td', { metin: (x.p.para_birimi ? x.p.para_birimi + '/' : '') + x.p.birim }),
+        el('td', { sinif: 'sayi', metin: x.s ? x.s.deger : '— yok —' }),
+        el('td', { metin: x.s ? (x.s.alinma_tarihi || x.s.yururluk) : '' }),
+        el('td', { sinif: 'sayi', metin: (x.gun === null ? '—' : String(x.gun)) + (x.bayat ? ' BAYAT' : '') }),
+        el('td', { metin: x.s ? x.s.kaynak : '' }),
+        el('td', { title: x.yerler.join('\n'), metin: x.yerler.length ? x.yerler.length + ' yer' : 'kullanılmıyor' }),
+        el('td', null, yeni, not)));
+    }
+    ekle(kap, el('div', { sinif: 'tablo-kap' }, el('table', null,
+      el('thead', null, el('tr', null, ['Parametre', 'Tür', 'Birim', 'Güncel', 'Son güncelleme', 'Kaç gün', 'Kaynak', 'Kullanım', 'Yeni değer'].map(function (b) { return el('th', { metin: b }); }))),
+      govde)));
+
+    const sayac = el('span', { sinif: 'soluk' });
+    const sayacCiz = function () {
+      const n = Object.keys(ek.yeni).filter(function (ad) { return String(ek.yeni[ad]).trim() !== '' && k.parametreler[ad]; }).length;
+      sayac.textContent = n ? n + ' parametreye yeni değer yazıldı' : 'henüz yeni değer yok';
+    };
+    sayacCiz();
+    ekle(kap, el('div', { sinif: 'satir-ici sarmal' },
+      el('button', { type: 'button', sinif: 'dugme', metin: 'Değerleri ekle', onclick: ekleTikla }),
+      el('button', { type: 'button', sinif: 'dugme ikincil', metin: 'Yazılanları temizle', onclick: function () { ek.yeni = {}; ek.ileti = null; ciz(); } }),
+      sayac));
+    if (ek.ileti) ekle(kap, el('div', { sinif: 'ileti ' + ek.ileti.tur, metin: ek.ileti.metin }));
+    if (odak) {
+      const yeniOdak = kap.querySelector('[data-odak="' + odak.replace(/"/g, '') + '"]');
+      if (yeniOdak) yeniOdak.focus();
+    }
+  }
+
+  function ekleTikla() {
+    const { A, durum } = api;
+    const Z = kok.KutuDuzen;
+    const k = durum.katalog;
+    const satirlar = [];
+    const hatalar = [];
+    for (const ad of Object.keys(ek.yeni).sort()) {
+      if (!k.parametreler[ad] || String(ek.yeni[ad]).trim() === '') continue;
+      const d = A.sayiDenetle(ek.yeni[ad]);
+      if (d.hata) hatalar.push(ad + ': ' + d.hata);
+      else satirlar.push({ ad, deger: d.metin });
+    }
+    if (hatalar.length) { ek.ileti = { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ. ' + hatalar.join(' ') }; ciz(); return; }
+    if (!satirlar.length) { ek.ileti = { tur: 'uyari', metin: 'Yeni değer yazılmadı.' }; ciz(); return; }
+    let r;
+    try {
+      r = Z.topluDegerEkle(k, api.C, satirlar, ek.ortak, { giren: durum.giren.trim(), giris_zamani: api.simdiIso() });
+    } catch (e) {
+      if (!e || !e.kod) throw e;
+      const a = e.ayrinti || {};
+      ek.ileti = { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ: ' + (a.ad ? a.ad + ' — ' : '') + (a.alanlar ? 'zorunlu alanlar boş: ' + a.alanlar.join(', ') : (a.neden || e.kod)) };
+      ciz();
+      return;
+    }
+    ek.yeni = {};
+    ek.ileti = { tur: 'tamam', metin: r.eklenen + ' parametreye yeni değer eklendi. Tarayıcıya kaydetmeyi ve yedek indirmeyi unutmayın.' };
+    api.katalogDegisti(r.katalog, 'hızlı güncelleme: ' + r.eklenen + ' değer');
+  }
+
+  kok.KutuHizli = { kur, ciz, durum: ek };
+})(this);
+
+// Gerçek tablo karşılaştırma ekranı (K4a). Karşılaştırma dosyası (gerçek tablo hücreleri) dosyadan
+// açılır, yalnız bellekte tutulur (depoya yazılmaz) ve o anki katalogla her değişiklikte yeniden koşar.
+// Sınıflar ve kural: ekran/karsilastir.js.
+(function (kok) {
+  'use strict';
+  let api = null;
+  const ek = { dosya: null, dosyaAdi: null, hata: null, acik: {} };
+
+  function kur(a) { api = a; }
+
+  function ac(metin, ad) {
+    try {
+      ek.dosya = kok.KutuKarsilastir.dosyaOku(metin);
+      ek.dosyaAdi = ad;
+      ek.hata = null;
+      ek.acik = {};
+    } catch (e) {
+      ek.hata = 'Karşılaştırma dosyası açılamadı: ' + (e && e.kod || e) + '. Önceki dosya değişmedi.';
+    }
+    ciz();
+  }
+
+  function ciz() {
+    const kap = document.getElementById('karsilastir');
+    if (!api || !kap || !api.durum.katalog) return;
+    const { C, A, el, ekle, bosalt } = api;
+    const K = kok.KutuKarsilastir;
+    bosalt(kap);
+    const dosyaSec = el('input', { type: 'file', accept: '.json,application/json', hidden: true });
+    dosyaSec.addEventListener('change', function () {
+      const f = dosyaSec.files && dosyaSec.files[0];
+      dosyaSec.value = '';
+      if (!f) return;
+      const o = new FileReader();
+      o.onload = function () { ac(String(o.result), f.name); };
+      o.readAsText(f, 'utf-8');
+    });
+    ekle(kap, el('h2', { metin: 'Gerçek tablo karşılaştırması' }),
+      el('p', { sinif: 'soluk', metin: 'Karşılaştırma dosyası her vaka için hesap isteğini ve tablonun hücre değerlerini taşır; o anki katalogla hesaplanır. Fark tam bir sınıfa girer: SIFIR, ŞÜPHELİ (tablo formülü hatalı görünüyor, onay bekliyor), AÇIKLANMIŞ TABLO HATASI (onaylı), KATALOG KUSURU, HESAP YOK. Dosya yalnız bu sayfanın belleğinde kalır.' }),
+      el('div', { sinif: 'dugmeler' },
+        el('label', { sinif: 'dugme' }, 'Karşılaştırma dosyası aç', dosyaSec),
+        window.KUTU_ORNEK_KARSILASTIRMA ? el('button', { type: 'button', sinif: 'dugme ikincil', metin: 'Uydurma örneği yükle', onclick: function () { ac(window.KUTU_ORNEK_KARSILASTIRMA, 'uydurma örnek'); } }) : null));
+    if (ek.hata) ekle(kap, el('div', { sinif: 'ileti hata', metin: ek.hata }));
+    if (!ek.dosya) { ekle(kap, el('p', { sinif: 'soluk', metin: 'Henüz dosya açılmadı.' })); return; }
+
+    let r;
+    try {
+      r = K.hepsi(C, api.durum.katalog, ek.dosya);
+    } catch (e) {
+      ekle(kap, el('div', { sinif: 'ileti hata', metin: 'Karşılaştırma yapılamadı: ' + (e && e.kod || e) + (e && e.ayrinti ? ' ' + JSON.stringify(e.ayrinti) : '') }));
+      return;
+    }
+    const etiket = function (s) { return K.SINIF_METNI[s].split(' — ')[0]; };
+    ekle(kap, el('p', null, el('strong', { metin: ek.dosyaAdi + ': ' }),
+      K.SINIFLAR.map(function (s) { return el('span', { sinif: 'rozet sinif-' + s, metin: etiket(s) + ' ' + r.sayim[s] + ' ' }); })),
+    el('p', { sinif: r.temiz ? 'tamam-metni' : 'hata-metni', metin: r.temiz ? 'Katalog kusuru ve hesapsız vaka yok.' : 'Katalog kusuru ya da hesapsız vaka var.' }));
+
+    const govde = el('tbody');
+    r.sonuclar.forEach(function (s, i) {
+      const acik = !!ek.acik[i];
+      const tutmayan = s.hucre.filter(function (o) { return !o.tamam; }).length;
+      ekle(govde, el('tr', { sinif: 'sinif-satir-' + s.sinif },
+        el('td', null, el('button', { type: 'button', sinif: 'ac-kapa', metin: acik ? '▾' : '▸', 'aria-label': 'ayrıntı', onclick: function () { ek.acik[i] = !acik; ciz(); } })),
+        el('td', null, el('span', { sinif: 'rozet sinif-' + s.sinif, metin: etiket(s.sinif) })),
+        el('td', { metin: s.ad }),
+        el('td', { sinif: 'soluk', metin: s.kaynak }),
+        el('td', { metin: s.sinif === 'HESAP_YOK' ? '—' : (s.hucre.length - tutmayan) + '/' + s.hucre.length + ' alan tutuyor' })));
+      if (!acik) return;
+      const ayrinti = el('td', { colSpan: 5 });
+      ekle(ayrinti, el('p', { sinif: 'soluk', metin: K.SINIF_METNI[s.sinif] + ' · tolerans ' + s.tolerans + (ek.dosya.vakalar[i].tolerans_gerekce ? ' (' + ek.dosya.vakalar[i].tolerans_gerekce + ')' : '') }));
+      if (s.sinif === 'HESAP_YOK') {
+        const neden = s.sonuc.durum === 'hata' ? [A.kodMetni(Object.assign({ kod: s.sonuc.hata.kod }, s.sonuc.hata.ayrinti))] : s.sonuc.eksikler.map(function (e) { return A.eksikMetni(e); });
+        ekle(ayrinti, el('ul', { sinif: 'liste' }, neden.map(function (n) { return el('li', { metin: n }); })));
+      }
+      const tablo = function (baslik, olculer) {
+        return [el('h4', { metin: baslik }), el('div', { sinif: 'tablo-kap' }, el('table', null,
+          el('thead', null, el('tr', null, ['Alan', 'Beklenen', 'Kutu', 'Fark', ''].map(function (b) { return el('th', { metin: b }); }))),
+          el('tbody', null, olculer.map(function (o) {
+            return el('tr', { sinif: o.tamam ? null : 'bayat' },
+              el('td', { metin: o.alan }), el('td', { sinif: 'sayi', metin: o.beklenen }), el('td', { sinif: 'sayi', metin: o.bulunan === null ? '— yok —' : o.bulunan }),
+              el('td', { sinif: 'sayi', metin: o.fark === null ? '' : o.fark }), el('td', { metin: o.tamam ? '✓' : '✗' }));
+          }))))];
+      };
+      if (s.hucre.length) ekle(ayrinti, tablo('Tablo hücresi', s.hucre));
+      if (s.niyet) ekle(ayrinti, tablo('Tablonun niyeti' + (ek.dosya.vakalar[i].niyet.aciklama ? ': ' + ek.dosya.vakalar[i].niyet.aciklama : ''), s.niyet));
+      if (ek.dosya.vakalar[i].not) ekle(ayrinti, el('p', { sinif: 'soluk', metin: 'Not: ' + ek.dosya.vakalar[i].not }));
+      ekle(govde, el('tr', null, ayrinti));
+    });
+    ekle(kap, el('div', { sinif: 'tablo-kap' }, el('table', null,
+      el('thead', null, el('tr', null, ['', 'Sınıf', 'Vaka', 'Kaynak', 'Sonuç'].map(function (b) { return el('th', { metin: b }); }))),
+      govde)));
+  }
+
+  kok.KutuKarsilastirmaEkrani = { kur, ciz, durum: ek };
+})(this);
+
 // Kutu ekranı (K2): katalog aç/kaydet/yedek, hesap ekranı, hesap dökümü.
 // Hesap ve doğrulama çekirdekte (FiyatCekirdek); burada yalnız ekran durumu ve çizim var.
 // Katalogdan gelen her metin textContent ile basılır (innerHTML yok).
@@ -4241,7 +4667,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
     }
     katalogBolumuCiz();
     hesapla();
-    if (window.KutuEditor) window.KutuEditor.ciz();
+    modulleriCiz();
   }
 
   // ---------- editör: katalog değişikliği, geri al / yinele ----------
@@ -4254,7 +4680,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
     katalogBilgisiCiz();
     denetimPlanla();
     hesapla();
-    if (window.KutuEditor) window.KutuEditor.ciz();
+    modulleriCiz();
   }
   // Editör her başarılı işlemde çağırır; eski katalog (dondurulmuş, dokunulmamış) geçmişe girer.
   function katalogDegisti(yeni, aciklama) {
@@ -4292,12 +4718,21 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
       if (window.KutuEditor) window.KutuEditor.denetimGeldi();
     }, 350);
   }
+  // Sekmeler ve katalog değişince yeniden çizilen ek ekranlar (editör, hızlı güncelleme, karşılaştırma).
+  const SEKMELER = ['hesap', 'editor', 'hizli', 'karsilastir'];
+  function moduller() {
+    return [window.KutuEditor, window.KutuHizli, window.KutuKarsilastirmaEkrani].filter(Boolean);
+  }
+  function modulleriCiz() {
+    for (const m of moduller()) m.ciz();
+  }
   function sekmeSec(ad) {
     durum.sekme = ad;
-    $('sekme-hesap').hidden = ad !== 'hesap';
-    $('sekme-editor').hidden = ad !== 'editor';
-    $('sekme-dugme-hesap').setAttribute('aria-selected', String(ad === 'hesap'));
-    $('sekme-dugme-editor').setAttribute('aria-selected', String(ad === 'editor'));
+    for (const s of SEKMELER) {
+      $('sekme-' + s).hidden = ad !== s;
+      $('sekme-dugme-' + s).setAttribute('aria-selected', String(ad === s));
+    }
+    modulleriCiz(); // hesap tarihi gibi ortak durum sekme dışındayken değişmiş olabilir
   }
   // Editörden örnek hesap: seçimi kurar, hesap sekmesine geçer.
   function hesabaGit(secim) {
@@ -4797,12 +5232,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
     window.addEventListener('beforeunload', function (e) {
       if (durum.kaydedilmedi) { e.preventDefault(); e.returnValue = ''; }
     });
-    $('sekme-dugme-hesap').addEventListener('click', function () { sekmeSec('hesap'); });
-    $('sekme-dugme-editor').addEventListener('click', function () { sekmeSec('editor'); });
+    for (const s of SEKMELER) $('sekme-dugme-' + s).addEventListener('click', function () { sekmeSec(s); });
     sekmeSec('hesap');
-    if (window.KutuEditor) {
-      window.KutuEditor.kur({ C, A, durum, el, ekle, bosalt, ileti, katalogDegisti, geriAl, yinele, hesabaGit, adli, bugun, simdiIso, kisa });
-    }
+    const arayuz = { C, A, durum, el, ekle, bosalt, ileti, katalogDegisti, geriAl, yinele, hesabaGit, adli, bugun, simdiIso, kisa };
+    for (const m of moduller()) m.kur(arayuz);
     const ac = depo.ac();
     durum.acilis = ac;
     if (ac.durum === 'tamam') katalogKur(ac.katalog, 'tarayici', { kayit: ac.kayit });
