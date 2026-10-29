@@ -5556,7 +5556,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } catch (e) {
       if (!e || !e.kod) throw e;
       const a = e.ayrinti || {};
-      return { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ: ' + (a.ad ? a.ad + ' — ' : '') + (a.alanlar ? 'zorunlu alanlar boş: ' + a.alanlar.join(', ') : (a.neden || e.kod)) };
+      // Kaynak kutusu yalnız fiyat ekranlarında (Tüm fiyatlar, kumaş listesi) görünür: Genel ayarlardan
+      // Kaydet'e basılmışsa nerede doldurulacağı söylenir (Fable P5).
+      const nerede = a.alanlar && fiyatVar ? ' Kaynak bilgisi "Tüm fiyatlar" ya da kumaş listesi sekmesinde; oradaki yazılmış fiyatları önce o sekmede tamamlayın.' : '';
+      return { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ: ' + (a.ad ? a.ad + ' — ' : '') + (a.alanlar ? 'zorunlu alanlar boş: ' + a.alanlar.join(', ') : (a.neden || e.kod)) + nerede };
     }
     ek.yeni = {};
     const ileti = { tur: 'tamam', metin: r.eklenen + ' parametreye yeni değer eklendi. Kalıcı olması için "Kaydet"; yedek indirmeyi de unutmayın.' };
