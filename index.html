@@ -415,7 +415,7 @@ module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIM
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "bd740f7db81a79903684abf4489446d7855657f3b734a5e7d76367d6404a2b9e" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "5216bc4cabd260781caecf3037549ef03ba8656fbdb33521e8880ca4282eb7d4" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -548,6 +548,12 @@ function dogrula(katalog, secenekler) {
 
   // Formül yardımcıları
   const cozumOnbellek = new Map();
+  // Ürün formülünde "1.000" gibi sabit: Türkçe yazımda bin mi bir mi belirsiz (Fable P4). Yalnız UYARI.
+  function binlikDenetle(ifade, yer) {
+    const m = /(^|[^\d.])([1-9]\d{0,2}\.\d{3})(?![\d.])/.exec(String(ifade));
+    if (m) uyari('BELIRSIZ_BINLIK', Object.assign({ sabit: m[2] }, yer));
+  }
+
   function cozumle(ifade, yer) {
     if (cozumOnbellek.has(ifade)) {
       const c = cozumOnbellek.get(ifade);
@@ -963,6 +969,7 @@ function dogrula(katalog, secenekler) {
       const ty = { urun: urunAdi, ara_deger: t.ad };
       bilinmeyen(t, S.ALANLAR.ara_deger, Object.assign({ yer: 'ara_deger' }, ty));
       adTanimla(t.ad, ty);
+      binlikDenetle(t.ifade, ty);
       const c = cozumle(t.ifade, ty);
       const okunan = [];
       if (c) {
@@ -982,6 +989,7 @@ function dogrula(katalog, secenekler) {
     // satır onu tanımlamalı. Para birimli parametreler tek para biriminde.
     const formulAra = [];
     for (const f of formulKalemleri) {
+      binlikDenetle(f.k.ifade, f.ky);
       const c = cozumle(f.k.ifade, f.ky);
       if (!c) continue;
       const oz = (f.secenek && f.secenek.ozellikler) || {};
@@ -4449,6 +4457,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     YUZDE_BICIMI_GECERSIZ: 'Yüzde kaleminin biçimi geçersiz (toplamsal, zincir_carpan ya da zincir_bolen)',
     ZINCIR_ORANI_GECERSIZ: 'Zincir oranı geçersiz (negatif olamaz; bölen biçiminde 1 ya da üstü olamaz)',
     ZINCIR_ORANI_YUKSEK: 'Zincir oranı %50 üstünde: doğru mu?',
+    BELIRSIZ_BINLIK: 'Formülde "1.000" gibi sabit: bir mi bin mi belirsiz. Bin için 1000, bir için 1 ya da 1.0 yazın',
+    BICIM_GECERSIZ: 'Fire biçimi geçersiz',
     YUZDE_BICIMI_KARISIK: 'Üründe kumaşa hem toplamsal hem zincirleme yüzde uygulanıyor: bilerek mi?',
     KATEGORI_TANIMSIZ: 'Ürünün kategorisi katalogda yok',
     KATEGORI_GECERSIZ: 'Ürünün kategorisi bozuk',
@@ -5706,6 +5716,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
 })(this, function () {
   'use strict';
 
+  const YUZDE_BICIMLERI = ['toplamsal', 'zincir_carpan', 'zincir_bolen'];
+
   function DuzenHatasi(kod, ayrinti) {
     this.name = 'DuzenHatasi';
     this.kod = kod;
@@ -6005,6 +6017,13 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       param = { ad: pAd, deger: metin };
       oge = { kalem, label_tr: etiket, tip: yuzde ? 'yuzde' : hesap === 'adet' ? 'adet_basina' : 'kg_basina', deger: pAd };
       if (hesap === 'yuzde_ara') oge.matrah = 'ara_toplam';
+      // Kumaş yüzdesinde biçim (toplamsal varsayılan); zincir yalnız kumaş matrahında.
+      const bicim = istek.bicim || 'toplamsal';
+      if (YUZDE_BICIMLERI.indexOf(bicim) === -1 || (bicim !== 'toplamsal' && hesap !== 'yuzde_kumas')) throw hata('BICIM_GECERSIZ', { bicim });
+      if (bicim !== 'toplamsal') {
+        oge.bicim = bicim;
+        y0.parametreler[pAd].aciklama = bicim === 'zincir_carpan' ? 'zincir: (kumaş + önceki fireler) × oran' : 'zincir: (kumaş + önceki fireler) × oran ÷ (1 − oran)';
+      }
     } else throw hata('TUR_GECERSIZ', { hesap });
     dizi0.push(oge);
     let y = y0;
@@ -6012,8 +6031,23 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return { katalog: y, kalem, parametre: param ? param.ad : null };
   }
 
+  // Ürünün (kategorisiyle) ya da kategorinin kumaş yüzdeleri zincirli mi: düzenleyicinin yeni yüzde kalemi
+  // için ön seçili biçim (Fable: zincirliyse zincir_carpan, değilse toplamsal).
+  function kumasBicimi(k, yer) {
+    const g = govde(k, yer);
+    const kat = yer.tur === 'urun' && g.kategori && k.kategoriler && kendi(k.kategoriler, g.kategori) ? k.kategoriler[g.kategori] : null;
+    const kalemler = [];
+    for (const x of [kat, g]) {
+      if (!x) continue;
+      for (const kl of x.kalemler || []) kalemler.push(kl);
+      for (const a of x.alanlar || []) for (const s of a.secenekler || []) for (const kl of s.kalemler || []) kalemler.push(kl);
+    }
+    const zincir = kalemler.some(function (kl) { return kl.tip === 'yuzde' && (kl.matrah === undefined || kl.matrah === 'kumas') && kl.bicim !== undefined && kl.bicim !== 'toplamsal'; });
+    return zincir ? 'zincir_carpan' : 'toplamsal';
+  }
+
   return {
-    DuzenHatasi, adUret, kalemKur, urunEkle, urunKopyala, urunSil, kategoriEkle, kategoriSil, govdeGuncelle,
+    DuzenHatasi, adUret, kalemKur, kumasBicimi, urunEkle, urunKopyala, urunSil, kategoriEkle, kategoriSil, govdeGuncelle,
     diziEkle, diziTasi, diziSil, nesneGuncelle, alanTuruDegistir, kalemTipiDegistir, adKullanimi,
   };
 });
@@ -6031,6 +6065,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   const TURLER = [['sayi', 'Sayı (elle yazılır)'], ['secim', 'Seçim (seçenekli)'], ['kumas', 'Kumaş (fiyatı listeden)']];
   const TIPLER = [['adet_basina', 'adet başına tutar'], ['kg_basina', 'kg başına tutar'], ['yuzde', 'yüzde (oran)'], ['formul', 'formül']];
   const MATRAHLAR = [['', 'kumaş maliyetinin'], ['ara_toplam', 'ara toplamın']];
+  // Kumaş yüzdesinin biçimi: toplamsal kumaşa ayrı satır; zincir önceki firelerin üstüne.
+  const BICIMLER = [['toplamsal', 'Kumaşa ayrı'], ['zincir_carpan', 'Zincir × (1 + oran)'], ['zincir_bolen', 'Zincir ÷ (1 − oran)']];
   const PARA = ['EUR', 'TRY', 'USD'];
   const Z = function () { return kok.KutuUrunDuzen; };
 
@@ -6333,6 +6369,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const yuzde = f.hesap === 'yuzde_kumas' || f.hesap === 'yuzde_ara';
     if (yuzde || f.hesap === 'adet' || f.hesap === 'kg') {
       kutular.push(alan(yuzde ? 'Yüzde (%)' : 'Tutar', kutu('deger', { inputMode: 'decimal', placeholder: yuzde ? '3' : '1,5', 'data-yeni-kalem': 'deger' }), yuzde ? '3 yazarsanız %3' : null));
+      if (f.hesap === 'yuzde_kumas') {
+        if (!f.bicim) f.bicim = Z().kumasBicimi(k, yer);
+        kutular.push(alan('Fire biçimi', secim(BICIMLER, f.bicim, function (v) { f.bicim = v; }, { 'data-yeni-kalem': 'bicim' })));
+      }
       if (!yuzde) kutular.push(alan('Para birimi', secim(PARA.map(function (p) { return [p, p]; }), f.para_birimi || g.para_birimi || 'EUR', function (v) { f.para_birimi = v; })));
       kutular.push(alan('Giren', el('input', { type: 'text', value: durum.giren, placeholder: 'adınız', oninput: function (e) { durum.giren = e.target.value; }, 'data-yeni-kalem': 'giren' })));
     } else if (f.hesap === 'parametre') {
@@ -6351,7 +6391,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
             if (d.hata) { kok.KutuParametreEkrani.durum.ileti = { tur: 'hata', metin: d.hata }; yeniden(); return; }
             deger = d.metin;
           }
-          const istek = { label_tr: f.label_tr, hesap: f.hesap, deger, para_birimi: f.para_birimi || g.para_birimi, parametre: f.parametre, tip: f.tip, ifade: f.ifade, yururluk: api.bugun() };
+          const istek = { label_tr: f.label_tr, hesap: f.hesap, bicim: f.hesap === 'yuzde_kumas' ? f.bicim : undefined, deger, para_birimi: f.para_birimi || g.para_birimi, parametre: f.parametre, tip: f.tip, ifade: f.ifade, yururluk: api.bugun() };
           const r = uygula(function (x) { return Z().kalemKur(x, yer, yol, istek, api.C, { giren: durum.giren.trim(), giris_zamani: api.simdiIso() }); }, 'kalem eklendi: ' + f.label_tr);
           if (r) { delete ek.yeniKalem[anahtar]; yeniden(); }
         } })),
@@ -6387,7 +6427,13 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } else {
       kutular.push(el('span', { sinif: 'soluk', metin: 'tutar seçilen liste satırının fiyat sütunundan' }));
     }
-    if (x.tip === 'yuzde') kutular.push(alan('Neyin yüzdesi', secim(MATRAHLAR, x.matrah, function (v) { gun({ matrah: v }, 'matrah'); })));
+    if (x.tip === 'yuzde') {
+      // Ara toplama geçince zincir biçimi kalkar (zincir yalnız kumaş matrahında).
+      kutular.push(alan('Neyin yüzdesi', secim(MATRAHLAR, x.matrah, function (v) { gun(v ? { matrah: v, bicim: '' } : { matrah: v }, 'matrah'); })));
+      if (x.matrah === undefined || x.matrah === 'kumas') {
+        kutular.push(alan('Fire biçimi', secim(BICIMLER, x.bicim || 'toplamsal', function (v) { gun({ bicim: v === 'toplamsal' ? '' : v }, 'fire biçimi'); }, { 'data-kalem-bicim': yol.join('.') })));
+      }
+    }
     if (!kalip) kutular.push(el('div', { sinif: 'satir-ici' }, siraDugmeleri(yer, yol.slice(0, -1), i, n, x.label_tr || x.kalem)));
     return el('div', { sinif: 'satir-ici sarmal satir-kart', 'data-kalem': yol.join('.') }, kutular);
   }
@@ -6798,6 +6844,17 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const h = haneli(metin, HANE);
     return (h.yaklasik ? '≈ ' : '') + h.metin;
   }
+  // "Nasıl hesaplandı" sütununda sayı: 4 haneye yuvarlanır, sondaki sıfırlar atılır (272,0000 → 272;
+  // 0,5000 → 0,5); tam değilse başında "≈".
+  function kisa(metin) {
+    const h = haneli(metin, HANE);
+    const m = h.metin.indexOf(',') === -1 ? h.metin : h.metin.replace(/0+$/, '').replace(/,$/, '');
+    return (h.yaklasik ? '≈ ' : '') + m;
+  }
+  // Ara değer birimi ekranda: m2 → m², m3 → m³.
+  function birimMetni(b) {
+    return String(b).replace(/^m2$/, 'm²').replace(/^m3$/, 'm³');
+  }
   // Oran kesri ("0.08") → "%8": ondalık nokta iki hane sağa kayar, sondaki sıfırlar atılır.
   function yuzde(oran) {
     const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(String(oran));
@@ -6896,29 +6953,44 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return etiket(s, s.kalem) + ' (' + secAdi + ')';
   }
 
-  // "Nasıl hesaplandı": satırın kendi alanlarından (miktar × parametre değeri, matrah × oran).
-  // Kurla çevrilen satırda (TRY) tutar kaynak para biriminde yazılır, sonra "= kaynak tutar ÷ kur".
-  function nasilHesaplandi(s, pb) {
+  // "Nasıl hesaplandı": satırın kendi alanlarından (miktar × parametre değeri, matrah × oran), kısa sayılarla.
+  // Kurla çevrilen satırda (TRY) tutar kaynak para biriminde yazılır, sonra "→ € (kur k)".
+  // kumasTutari: kırılımdaki kumaş satırının tutarı (zincirin ilk satırı "kumaş" diye yazılır).
+  function nasilHesaplandi(s, pb, kumasTutari) {
     const kurlu = s.kur_degeri !== null && s.kur_degeri !== undefined;
     const p = paraSimgesi(kurlu ? s.kaynak_para_birimi : pb);
-    const kur = kurlu ? ' = ' + sayi(s.kaynak_tutar) + ' ' + p + ' ÷ ' + sayi(s.kur_degeri) + ' ' + p + '/' + paraSimgesi(pb) : '';
+    const cevir = kurlu ? ' → ' + paraSimgesi(pb) + ' (kur ' + kisa(s.kur_degeri) + ')' : '';
+    const kur = kurlu ? ' = ' + kisa(s.kaynak_tutar) + ' ' + p + cevir : '';
     if (s.tip === 'kumas') {
       const b = MIKTAR_BIRIMI[s.miktar_birimi] || s.miktar_birimi;
-      return sayi(s.miktar) + ' ' + b + ' × ' + sayi(s.parametre_degeri) + ' ' + p + '/' + b +
+      return kisa(s.miktar) + ' ' + b + ' × ' + kisa(s.parametre_degeri) + ' ' + p + '/' + b +
         (s.kumas_eni_cm ? ' (kumaş eni ' + String(s.kumas_eni_cm).replace('.', ',') + ' cm)' : '') + kur;
     }
-    if (s.tip === 'kg_basina') return sayi(s.miktar) + ' kg × ' + sayi(s.parametre_degeri) + ' ' + p + '/kg' + kur;
+    if (s.tip === 'kg_basina') return kisa(s.miktar) + ' kg × ' + kisa(s.parametre_degeri) + ' ' + p + '/kg' + kur;
     // Formül kalemi: ifade, adların yerine okunan değerlerle (TRY ise kaynak tutar ve kur da yazılır).
     if (s.tip === 'formul') {
       const d = {};
       for (const ad of Object.keys(s.formul.degerler)) d[ad] = String(s.formul.degerler[ad]).replace('.', ',');
       return ifadeMetni(s.formul.ifade, d) + kur;
     }
-    if (s.tip === 'adet_basina') return 'adet başına ' + sayi(s.parametre_degeri) + ' ' + p + (kurlu ? ' ÷ ' + sayi(s.kur_degeri) + ' ' + p + '/' + paraSimgesi(pb) : '');
-    // Zincir satırının matrahı o adımın tabanıdır (kumaş + önceki zincir satırları).
-    if (s.bicim === 'zincir_carpan') return sayi(s.matrah_tutari) + ' × ' + yuzde(s.parametre_degeri) + ' (zincir tabanı)';
-    if (s.bicim === 'zincir_bolen') return sayi(s.matrah_tutari) + ' × ' + yuzde(s.parametre_degeri) + ' ÷ (1 − ' + yuzde(s.parametre_degeri) + ') (zincir tabanı)';
-    return sayi(s.matrah_tutari) + ' × ' + yuzde(s.parametre_degeri) + ' (' + (s.matrah === 'kumas' ? 'kumaş' : 'ara toplam') + ')';
+    if (s.tip === 'adet_basina') return 'adet başına ' + kisa(s.parametre_degeri) + ' ' + p + cevir;
+    // Zincir satırının matrahı o adımın tabanıdır: kumaş + önceki fireler.
+    if (s.bicim === 'zincir_carpan' || s.bicim === 'zincir_bolen') {
+      const taban = s.matrah_tutari === kumasTutari ? 'kumaş' : 'kumaş + önceki fireler';
+      const bolen = s.bicim === 'zincir_bolen' ? ' ÷ ' + yuzde(birEksi(s.parametre_degeri)) : '';
+      return kisa(s.matrah_tutari) + ' × ' + yuzde(s.parametre_degeri) + bolen + ' (' + taban + ')';
+    }
+    return kisa(s.matrah_tutari) + ' × ' + yuzde(s.parametre_degeri) + ' (' + (s.matrah === 'kumas' ? 'kumaş' : 'ara toplam') + ')';
+  }
+
+  // 1 − oran, ondalık metinle (kayan nokta yok); yalnız 0 ≤ oran < 1 (çekirdek bölende bunu zorlar).
+  function birEksi(oran) {
+    const m = /^0?\.(\d+)$|^0$/.exec(String(oran));
+    if (!m) return oran;
+    if (!m[1]) return '1';
+    const n = m[1].length;
+    const v = (10n ** BigInt(n) - BigInt(m[1])).toString().padStart(n, '0');
+    return '0.' + v;
   }
 
   // Ara değer formülü: adlar değerleriyle (girilen sayı alanı, önceki ara değer) yer değiştirir; * → ×, / → ÷.
@@ -6940,25 +7012,29 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     for (const a of urun.alanlar) if (a.tur === 'sayi' && kendi(girilen, a.ad)) degerler[a.ad] = String(girilen[a.ad]).replace('.', ',');
     for (const d of sonuc.ara_degerler) {
       const t = (urun.ara_degerler || []).find(function (x) { return x.ad === d.ad; });
-      satirlar.push({ tur: 'ara_deger', kalem: etiket(t, d.ad), nasil: ifadeMetni(d.ifade, degerler) + ' = ' + sayi(d.deger) + (d.birim ? ' ' + d.birim : ''), tutar: '', toplam: '' });
-      degerler[d.ad] = sayi(d.deger);
+      // Adsız ifade (ürünün sabit tüketimi gibi) "sabit" diye yazılır.
+      const birim = d.birim ? ' ' + birimMetni(d.birim) : '';
+      const nasil = /[a-z]/.test(d.ifade) ? ifadeMetni(d.ifade, degerler) + ' = ' + kisa(d.deger) + birim : 'sabit ' + kisa(d.deger) + birim;
+      satirlar.push({ tur: 'ara_deger', kalem: etiket(t, d.ad), nasil, tutar: '', toplam: '' });
+      degerler[d.ad] = kisa(d.deger);
     }
+    const kumas = sonuc.satirlar.find(function (s) { return s.tip === 'kumas'; });
     const kalemSatiri = function (s) {
-      return { tur: 'kalem', kalem: satirEtiketi(urun, s), nasil: nasilHesaplandi(s, pb), tutar: sayi(s.tutar), toplam: '' };
+      return { tur: 'kalem', kalem: satirEtiketi(urun, s), nasil: nasilHesaplandi(s, pb, kumas ? kumas.tutar : null), tutar: sayi(s.tutar), toplam: '' };
     };
     const once = sonuc.satirlar.filter(function (s) { return s.ara_toplama_girer; });
     const sonra = sonuc.satirlar.filter(function (s) { return !s.ara_toplama_girer; });
     for (const s of once) satirlar.push(kalemSatiri(s));
-    satirlar.push({ tur: 'ara_toplam', kalem: 'Ara toplam', nasil: once.map(function (s) { return sayi(s.tutar); }).join(' + '), tutar: '', toplam: sayi(sonuc.ara_toplam) });
+    satirlar.push({ tur: 'ara_toplam', kalem: 'Ara toplam', nasil: 'yukarıdaki kalemlerin toplamı', tutar: '', toplam: sayi(sonuc.ara_toplam) });
     for (const s of sonra) satirlar.push(kalemSatiri(s));
-    satirlar.push({ tur: 'maliyet', kalem: 'Maliyet', nasil: [sayi(sonuc.ara_toplam)].concat(sonra.map(function (s) { return sayi(s.tutar); })).join(' + '), tutar: '', toplam: sayi(sonuc.maliyet) });
-    satirlar.push({ tur: 'kar', kalem: 'Kâr', nasil: sayi(sonuc.maliyet) + ' × ' + yuzdeGirdisi(sonuc.kar_yuzde), tutar: sayi(sonuc.kar), toplam: '' });
-    satirlar.push({ tur: 'satis', kalem: 'Satış (adet başına)', nasil: sayi(sonuc.maliyet) + ' + ' + sayi(sonuc.kar), tutar: '', toplam: sayi(sonuc.hesaplanan_fiyat) });
+    satirlar.push({ tur: 'maliyet', kalem: 'Maliyet', nasil: [kisa(sonuc.ara_toplam)].concat(sonra.map(function (s) { return kisa(s.tutar); })).join(' + '), tutar: '', toplam: sayi(sonuc.maliyet) });
+    satirlar.push({ tur: 'kar', kalem: 'Kâr', nasil: kisa(sonuc.maliyet) + ' × ' + yuzdeGirdisi(sonuc.kar_yuzde), tutar: sayi(sonuc.kar), toplam: '' });
+    satirlar.push({ tur: 'satis', kalem: 'Satış (adet başına)', nasil: kisa(sonuc.maliyet) + ' + ' + kisa(sonuc.kar), tutar: '', toplam: sayi(sonuc.hesaplanan_fiyat) });
     // Yuvarlama adımı varsa (A8) teklif fiyatı ayrı satır; sipariş toplamı teklif fiyatından.
     if (sonuc.yuvarlama) {
-      satirlar.push({ tur: 'teklif', kalem: 'Teklif fiyatı', nasil: sayi(sonuc.hesaplanan_fiyat) + ' → ' + sayi(sonuc.yuvarlama.adim) + ' katına yukarı', tutar: '', toplam: sayi(sonuc.birim_fiyat) });
+      satirlar.push({ tur: 'teklif', kalem: 'Teklif fiyatı', nasil: kisa(sonuc.hesaplanan_fiyat) + ' → yukarı yuvarlandı (' + kisa(sonuc.yuvarlama.adim) + ' ' + paraSimgesi(pb) + ' adım)', tutar: '', toplam: sayi(sonuc.birim_fiyat) });
     }
-    satirlar.push({ tur: 'siparis', kalem: 'Sipariş toplamı', nasil: sayi(sonuc.birim_fiyat) + ' × ' + sonuc.adet + ' adet', tutar: '', toplam: sayi(sonuc.toplam) });
+    satirlar.push({ tur: 'siparis', kalem: 'Sipariş toplamı', nasil: kisa(sonuc.birim_fiyat) + ' × ' + sonuc.adet + ' adet', tutar: '', toplam: sayi(sonuc.toplam) });
     return satirlar;
   }
 
@@ -6980,7 +7056,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     })).join('\n') + '\n';
   }
 
-  return { haneli, sayi, yuzde, paraSimgesi, istekKur, girisHatasiMetni, eksikMetni, kalemAdi, satirEtiketi, nasilHesaplandi, kirilim, basliklar, sekmeli };
+  return { haneli, sayi, kisa, yuzde, paraSimgesi, istekKur, girisHatasiMetni, eksikMetni, kalemAdi, satirEtiketi, nasilHesaplandi, kirilim, basliklar, sekmeli };
 });
 
 // Seçim ekranı (S-2, ön sekme): ürünü seç → ürünün alanları → bitmiş ürün fiyatı ve Excel gibi maliyet
@@ -7490,7 +7566,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } else if (ac.durum === 'erisilemez') {
       ekle(kutu, el('div', { sinif: 'ileti uyari' }, 'Tarayıcı deposu kullanılamıyor (gizli pencere ya da site verisi engelli: ' + ac.neden + '). Yalnız dosyayla çalışın: "Dosyadan aç" ve "Katalog dosyasını indir".'));
     } else if (ac.durum === 'bos' && durum.kaynak === 'ornek') {
-      ekle(kutu, el('div', { sinif: 'ileti bilgi' }, 'İlk açılış: uydurma, çok dallı örnek katalog yüklü (TÜM SAYILAR UYDURMA). Kendi kataloğunuzu "Dosyadan aç" ile yükleyin.'));
+      ekle(kutu, el('div', { sinif: 'ileti bilgi' }, 'İlk açılış: örnek katalog yüklü (havlu ve bornoz; TÜM SAYILAR UYDURMA). Kendi kataloğunuzu "Dosyadan aç" ile yükleyin.'));
     }
   }
 
