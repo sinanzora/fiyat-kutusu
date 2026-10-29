@@ -59,8 +59,9 @@ h1 { font-size: 20px; margin: 0; }
 h2 { font-size: 17px; margin: 0 0 10px; }
 h3 { font-size: 15px; margin: 4px 0 8px; }
 h4 { font-size: 14px; margin: 12px 0 6px; }
-main { max-width: 1280px; margin: 0 auto; padding: 12px 16px; }
-footer { max-width: 1280px; margin: 0 auto; padding: 8px 16px 24px; font-size: 13px; }
+/* Kullanıcı kararı (29.10): geniş ekranda tam genişlik (eski 1280 px sınırı kalktı). */
+main { padding: 12px 16px; }
+footer { padding: 8px 16px 24px; font-size: 13px; }
 .kart {
   background: var(--kart); border: 1px solid var(--cizgi); border-radius: 10px;
   padding: 14px 16px; margin-bottom: 14px;
@@ -162,6 +163,8 @@ fieldset:disabled input, fieldset:disabled select { opacity: 0.6; }
 .satir-ici.sarmal > .alan { flex: 1 1 140px; }
 .kv { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .satir-kart { border: 1px solid var(--cizgi); border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+/* Ürün düzenleyicide seçenekler kutusu satırın tamamını kaplar (geniş ekranda yarıda kalmasın). */
+.satir-ici.sarmal > .secenekler { flex: 1 1 100%; min-width: 0; }
 input.ifade { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .formul-denetim { display: block; font-size: 12.5px; margin: -4px 0 6px; overflow-wrap: anywhere; }
 .coklu-cubuk { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 8px; margin-top: 8px; border-radius: 8px; background: var(--bilgi-zemin); }
@@ -200,6 +203,34 @@ details.gelismis { margin: 4px 0 8px; }
 @media (max-width: 860px) {
   .agac-izgara { grid-template-columns: 1fr; }
   .agac { max-height: 50vh; }
+}
+/* Kullanıcı kararı (29.10): telefonda ve dikey tablette sağa-sola kaydırma YOK, yalnız aşağı. Tablolar
+   (Listeler, Genel ayarlar, Tüm fiyatlar, değer geçmişi) satır başına kart olur (960 px altı); hücre başlığı
+   data-baslik'ten (uygulama.js tabloBasliklari). Listede düzenlenebilir sütun başlıkları "Sütunlar"
+   kartı olarak üstte kalır. Kırılım aşağıda kendi kuralıyla 600 px'te kart olur. */
+@media (max-width: 960px) {
+  .tablo-kap:not(:has(#kirilim)) { overflow-x: visible; border: 0; }
+  .tablo-kap > table:not(#kirilim), .tablo-kap > table:not(#kirilim) > tbody,
+  .tablo-kap > table:not(#kirilim) > tbody > tr, .tablo-kap > table:not(#kirilim) > thead,
+  .tablo-kap > table:not(#kirilim) > thead > tr { display: block; width: auto; }
+  .tablo-kap > table:not(#kirilim) > thead th { display: none; }
+  .tablo-kap > table:not(#kirilim) > thead th:has(input) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; white-space: normal; border: 0; padding: 4px 0; background: transparent; }
+  .tablo-kap > table:not(#kirilim) > thead th:has(input) input { flex: 1 1 10em; min-width: 0; width: auto; }
+  .tablo-kap > table:not(#kirilim) > thead:has(th input)::before { content: "Sütunlar"; display: block; font-weight: 600; margin-bottom: 2px; }
+  .tablo-kap > table:not(#kirilim) > thead:has(th input) { border: 1px solid var(--cizgi); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .tablo-kap > table:not(#kirilim) > tbody > tr { border: 1px solid var(--cizgi); border-radius: 8px; padding: 6px 4px; margin: 0 0 8px; background: var(--kart); }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td {
+    display: grid; grid-template-columns: minmax(6.5em, 38%) minmax(0, 1fr); gap: 2px 10px; align-items: center;
+    border: 0; padding: 3px 6px; min-width: 0; text-align: left; white-space: normal; overflow-wrap: anywhere;
+  }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td::before { content: attr(data-baslik); color: var(--soluk); font-size: 12.5px; }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td > * { min-width: 0; max-width: 100%; }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td:first-child { display: block; font-weight: 600; }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td:first-child::before { content: none; }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td:not([data-baslik])::before, .tablo-kap > table:not(#kirilim) > tbody > tr > td[data-baslik=""]::before { content: none; }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td:not([data-baslik]) { display: block; }
+  .tablo-kap > table:not(#kirilim) > tbody > tr > td:empty { display: none; }
+  .tablo-kap > table:not(#kirilim) .liste-tablosu input, .tablo-kap > table:not(#kirilim) td input { min-width: 0; width: 100%; }
 }
 @media (max-width: 600px) {
   main { padding: 10px 16px; }
@@ -274,10 +305,117 @@ details.gelismis { margin: 4px 0 8px; }
 // ÜRETİLMİŞ: çekirdek/*.cjs birebir (araclar/derle.cjs).
 window.FiyatCekirdek = (function () {
   const tanimlar = {
+    "./crm.cjs": function (module, exports, require) {
+'use strict';
+// CRM saklama adaptörü (taşıma planı v1.1 KT-3, FH2a): geçerli bir teklif kaydını CRM ön fiyat
+// revizyonunun saklama alanlarına çevirir. Saf ve DB'siz; para ve miktar TAM SAYI METNİ olarak döner
+// (tutar ve kur × 10^6, miktar × 10^3; CRM crmFiyatHesap ölçeği). FAIL-CLOSED: kesirli adet, ölçeğe
+// sığmayan değer (6'dan çok anlamlı ondalık, sınır aşımı), bilinmeyen para birimi, eksik ya da ters kur
+// izi, geçersiz kayıt HATADIR; sessiz yuvarlama ve kırpma YOKTUR. Teklif birim fiyatı yukarı
+// yuvarlanmış `birim_fiyat`tır (`hesaplanan_fiyat` değil); 12 haneli satır tutarları CRM'e gitmez.
+// product_text yalnız etiketlerden kurulur (ürün + seçim/kumaş alanı: seçenek); hiçbir sayı alanı değeri
+// girmez. Etiketteki rakam kullanıcının yazdığı addır (CRM R12: P sütununa rakam kullanıcı sorumluluğu).
+
+const Sk = require('./sekil.cjs');
+const { hata } = require('./hata.cjs');
+const { dondur } = require('./dondur.cjs');
+const T = require('./teklif.cjs');
+const U = require('./urun.cjs');
+
+// CRM sözlükleri (zora-ajanda common/crmFirsatSozlugu.cjs paraBirimi / birim; tatbikat kopyadan ölçer).
+const PARA_BIRIMLERI = Object.freeze(['TRY', 'USD', 'EUR']);
+const BIRIM = 'adet';
+// CRM biçimi: tutar/kur tam kısmı en çok 9, miktar tam kısmı en çok 10 hane; ürün metni en çok 255.
+const TUTAR = { ondalik: 6, tam_hane: 9 };
+const MIKTAR = { ondalik: 3, tam_hane: 10 };
+const URUN_METNI_EN_UZUN = 255;
+const ONDALIK = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?$/;
+const TARIH = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+const KONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+
+// Ondalık metni ölçekli tam sayı metnine çevirir; yuvarlama yok: ölçeğin ötesinde sıfır olmayan
+// rakam varsa HATA.
+function olcekli(metin, olcek, alan) {
+  const e = typeof metin === 'string' ? ONDALIK.exec(metin) : null;
+  if (!e) throw hata('CRM_SAYI_BICIMI', { alan });
+  const kesir = e[2] || '';
+  if (/[1-9]/.test(kesir.slice(olcek.ondalik))) throw hata('CRM_OLCEK_ASIMI', { alan });
+  if (e[1].length > olcek.tam_hane) throw hata('CRM_SINIR_ASIMI', { alan });
+  return (BigInt(e[1] + kesir.slice(0, olcek.ondalik).padEnd(olcek.ondalik, '0'))).toString();
+}
+
+function urunMetni(katalog, sonuc) {
+  const acilim = U.urunAcilimi(katalog, sonuc.urun);
+  const parcalar = [acilim.label_tr || sonuc.urun];
+  for (const a of acilim.alanlar) {
+    if (a.tur !== 'secim' && a.tur !== 'kumas') continue;
+    // Savunma: geçerli sonuçta her seçim/kumaş alanı seçilmiştir (eksikse çekirdek `fiyat_yok` der).
+    if (!Object.prototype.hasOwnProperty.call(sonuc.secimler, a.ad)) continue;
+    const s = (a.secenekler || []).find(function (x) { return x.ad === sonuc.secimler[a.ad]; });
+    if (!s) throw hata('CRM_SECIM_ETIKETI_YOK', { alan: a.ad });
+    parcalar.push((a.label_tr || a.ad) + ': ' + (s.label_tr || s.ad));
+  }
+  const metin = parcalar.join(' · ');
+  // CRM metni kırpar (trim) ve uzunluğu `length` ile sayar (crmFiyatGirdisi metinAlani): adaptör çıktısı
+  // kırpmayla değişmemeli; satır sonu/kontrol karakteri liste görünümünü bozar (Fable FH2a şart b).
+  if (KONTROL.test(metin)) throw hata('CRM_URUN_METNI_KONTROL');
+  if (metin.trim() !== metin || metin === '') throw hata('CRM_URUN_METNI_BOSLUK');
+  if (metin.length > URUN_METNI_EN_UZUN) throw hata('CRM_URUN_METNI_UZUN', { en_uzun: URUN_METNI_EN_UZUN });
+  return metin;
+}
+
+// Kur izi: sonuçtaki kur parametresi kullanılan parametrelerde olmalı, yönü "TRY/<para birimi>"
+// (CRM: 1 [para birimi] = X TRY). fx_date = kur değerinin yürürlük tarihi.
+function kurIzi(sonuc) {
+  if (sonuc.kur === null || sonuc.kur === undefined) return { fx_rate_micro: null, fx_date: null };
+  // CRM CHECK: currency TRY iken kur izi olamaz. Ayrı kod (Fable FH2a şart c); gevşetme kararı FH6/FH9'da.
+  if (sonuc.para_birimi === 'TRY') throw hata('CRM_KUR_IZI_TRY_TEKLIFTE_TASINAMAZ');
+  const p = (sonuc.kullanilan_parametreler || []).find(function (x) { return x.ad === sonuc.kur.parametre; });
+  if (!p || p.deger !== sonuc.kur.deger || typeof p.yururluk !== 'string' || !TARIH.test(p.yururluk)) throw hata('CRM_KUR_IZI_EKSIK');
+  if (p.birim !== 'TRY/' + sonuc.para_birimi) throw hata('CRM_KUR_YONU');
+  const fx = olcekli(sonuc.kur.deger, TUTAR, 'fx_rate_micro');
+  if (fx === '0') throw hata('CRM_SINIR_ASIMI', { alan: 'fx_rate_micro' });
+  return { fx_rate_micro: fx, fx_date: p.yururluk };
+}
+
+// katalog: kaydın üretildiği katalog sürümü (etiketler ve denetim için). Önce teklifKaydiDenetle:
+// istemcinin sonucuna güvenilmez, aynı katalog ve çekirdekle yeniden hesap tutmalı. Saat okunmaz:
+// gelecek tarihli fx_date'i CRM sunucusu reddeder (FX_DATE_FUTURE), adaptör denetlemez.
+function crmRevizyonAlanlari(kayit, katalog) {
+  const d = T.teklifKaydiDenetle(katalog, kayit);
+  if (!d.gecerli) throw hata('CRM_KAYIT_GECERSIZ', { neden: d.neden });
+  return sonuctanAlanlar(katalog, kayit.sonuc);
+}
+
+// Denetlenmiş sonucun eşlemesi (sınır testleri bunu doğrudan sınar; dışa yalnız yukarıdaki açılır).
+function sonuctanAlanlar(katalog, s) {
+  if (!Sk.nesneMi(s.secimler)) throw hata('CRM_KAYIT_GECERSIZ', { neden: 'BICIM' });
+  if (PARA_BIRIMLERI.indexOf(s.para_birimi) === -1) throw hata('CRM_PARA_BIRIMI', { alan: 'currency' });
+  const e = typeof s.adet === 'string' ? ONDALIK.exec(s.adet) : null;
+  if (!e) throw hata('CRM_SAYI_BICIMI', { alan: 'quantity_milli' });
+  if (/[1-9]/.test(e[2] || '')) throw hata('CRM_ADET_KESIRLI');
+  const miktar = olcekli(e[1], MIKTAR, 'quantity_milli');
+  if (miktar === '0') throw hata('CRM_SINIR_ASIMI', { alan: 'quantity_milli' });
+  const kur = kurIzi(s);
+  return dondur({
+    product_text: urunMetni(katalog, s),
+    quantity_milli: miktar,
+    unit: BIRIM,
+    currency: s.para_birimi,
+    unit_cost_micro: olcekli(s.maliyet, TUTAR, 'unit_cost_micro'),
+    unit_price_micro: olcekli(s.birim_fiyat, TUTAR, 'unit_price_micro'),
+    fx_rate_micro: kur.fx_rate_micro,
+    fx_date: kur.fx_date,
+  });
+}
+
+module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIMLERI: PARA_BIRIMLERI, CRM_BIRIM: BIRIM };
+
+    },
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "0c006947735854e5dfb5a70f349f1cb046222089e64361266c5b03ea157cbcf1" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "2129413f6bff809c96d9db7421fdfa39fb87d5ee6e66e1210b3ed6a6d72c585f" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -2105,6 +2243,7 @@ const { dogrula } = require('./dogrula.cjs');
 const Dn = require('./dondur.cjs');
 const Fi = require('./fire.cjs');
 const T = require('./teklif.cjs');
+const Cr = require('./crm.cjs');
 const DAMGA = require('./damga.cjs');
 const { CekirdekHatasi } = require('./hata.cjs');
 
@@ -2123,6 +2262,9 @@ module.exports = {
   urunAcilimi: U.urunAcilimi,
   teklifKaydi: T.teklifKaydi,
   teklifKaydiDenetle: T.teklifKaydiDenetle,
+  crmRevizyonAlanlari: Cr.crmRevizyonAlanlari,
+  CRM_PARA_BIRIMLERI: Cr.CRM_PARA_BIRIMLERI,
+  CRM_BIRIM: Cr.CRM_BIRIM,
   dogrula,
   katalogOku: K.katalogOku,
   katalogMetni: K.katalogMetni,
@@ -7348,8 +7490,26 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog (çok dallı)
     return kap;
   }
 
+  // Dar ekranda tablolar satır başına kart olur (kullanıcı: telefonda yalnız aşağı kaydırma). Her hücre
+  // sütun başlığını data-baslik'te taşır; başlık thead'den (düzenlenebilir başlıkta kutunun değeri) alınır.
+  // Kırılım kendi başlıklarını taşır; dokunulmaz.
+  function tabloBasliklari() {
+    document.querySelectorAll('.tablo-kap > table:not(#kirilim)').forEach(function (t) {
+      const bas = Array.from(t.querySelectorAll('thead th')).map(function (th) {
+        const kutu = th.querySelector('input');
+        return ((kutu && kutu.value) || th.textContent).trim();
+      });
+      t.querySelectorAll('tbody tr').forEach(function (tr) {
+        Array.from(tr.cells).forEach(function (td, i) {
+          if (bas[i] && td.getAttribute('data-baslik') !== bas[i]) td.setAttribute('data-baslik', bas[i]);
+        });
+      });
+    });
+  }
+
   // ---------- açılış ----------
   function baslat() {
+    new MutationObserver(tabloBasliklari).observe(document.body, { childList: true, subtree: true });
     $('cekirdek-damga').textContent = 'çekirdek ' + C.SURUM + ' · ' + kisa(C.OZET);
     $('dosya-sec').addEventListener('change', function (e) {
       const dosya = e.target.files && e.target.files[0];
