@@ -415,7 +415,7 @@ module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIM
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "7a4f31aaad4562576acb422eb32d0af516116ea97ee2df29caa1de4cb2bafee5" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "c44e6dd2f7e815da663d5f03b7a2c1381a23c56b3fa906dde6bb3cf57cfd67ac" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -502,6 +502,15 @@ function dogrula(katalog, secenekler) {
   const params = katalog.parametreler;
   const paramVar = function (ad) { return kendiAlani(params, ad); };
 
+  // Yedekli sütunun hücresi bilerek boş bırakılabilir (fiyat ham + farktan): değersiz uyarısı verilmez.
+  // Şekli bozuk liste burada atlanır; kusuru Ü1'de raporlanır.
+  const yedekliHucreler = new Set();
+  for (const l of Object.values(katalog.listeler || {})) {
+    if (!Sk.nesneMi(l) || !Array.isArray(l.sutunlar) || !Array.isArray(l.satirlar)) continue;
+    const yedekli = l.sutunlar.filter(function (s) { return Sk.nesneMi(s) && s.yedek !== undefined; }).map(function (s) { return s.ad; });
+    for (const r of l.satirlar) for (const s of yedekli) if (Sk.nesneMi(r) && Sk.nesneMi(r.hucreler) && kendiAlani(r.hucreler, s)) yedekliHucreler.add(r.hucreler[s]);
+  }
+
   // B. Parametreler
   const gecerliParam = Object.create(null);
   for (const ad of parametreAdlari) {
@@ -538,7 +547,7 @@ function dogrula(katalog, secenekler) {
     });
     if (!satirlarTamam) continue;
     gecerliParam[ad] = true;
-    if (p.degerler.length === 0) { uyari('PARAMETRE_DEGERSIZ', yer); continue; }
+    if (p.degerler.length === 0) { if (!yedekliHucreler.has(ad)) uyari('PARAMETRE_DEGERSIZ', yer); continue; }
     const secim = P.yururluktekiSatir(p, tarih);
     if (!secim) { uyari('PARAMETRE_YURURLUKTE_DEGIL', yer); continue; }
     const esik = P.bayatEsigi(p);
@@ -3504,8 +3513,8 @@ function parametreUyumsuzlugu(p, beklenen, pb) {
 // olamaz, kendisi yedekli olamaz (zincir yok); yedekli sütun fark olamaz.
 function listeYedekEngeli(l) {
   const bul = function (ad) { return l.sutunlar.find(function (s) { return s.ad === ad; }); };
+  for (const s of l.sutunlar) if (s.tur !== undefined && s.tur !== 'fark') return { kod: 'LISTE_SUTUN_TURU', sutun: s.ad };
   for (const s of l.sutunlar) {
-    if (s.tur !== undefined && s.tur !== 'fark') return { kod: 'LISTE_SUTUN_TURU', sutun: s.ad };
     if (s.yedek === undefined) continue;
     const taban = bul(s.yedek.taban);
     const fark = bul(s.yedek.fark);
