@@ -5545,9 +5545,14 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     }
     if (hatalar.length) return { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ. ' + hatalar.join(' ') };
     if (!satirlar.length) return { tur: 'uyari', metin: 'Yeni değer yazılmadı.' };
+    // Kaynak ve giren yalnız fiyat/ücret (kumaş fiyatı gibi) için sorulur (kullanıcı kararı, 29.10). Yalnız
+    // kur, oran, yuvarlama gibi değerler yazıldıysa kaynak alanları boş kalır, giren "Genel ayarlar" olur.
+    const fiyatVar = satirlar.some(function (s) { const t = k.parametreler[s.ad].tur; return t === 'fiyat' || t === 'ucret'; });
+    const ortak = fiyatVar ? ortakHazirla() : { yururluk: ortakHazirla().yururluk };
+    const giren = durum.giren.trim() || (fiyatVar ? '' : 'Genel ayarlar');
     let r;
     try {
-      r = Z.topluDegerEkle(k, api.C, satirlar, ortakHazirla(), { giren: durum.giren.trim(), giris_zamani: api.simdiIso() });
+      r = Z.topluDegerEkle(k, api.C, satirlar, ortak, { giren, giris_zamani: api.simdiIso() });
     } catch (e) {
       if (!e || !e.kod) throw e;
       const a = e.ayrinti || {};
@@ -6679,9 +6684,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     kaydetDurumu();
   }
   // Ortak kaynak bilgisi + "Değerleri ekle" (ya hep ya hiç; tek geri al adımı).
-  function degerCubugu(kap) {
+  // kaynaksiz: kur, oran, tutar gibi değerlerde kaynak/giren sorulmaz; yalnız fiyat/ücrette (kumaş fiyatı) sorulur.
+  function degerCubugu(kap, kaynaksiz) {
     const { el, ekle } = api;
-    ekle(kap, H().ortakKutusu());
+    if (!kaynaksiz) ekle(kap, H().ortakKutusu());
     sayac = el('span', { sinif: 'soluk', 'data-param': 'sayac' });
     sayacYaz();
     ekle(kap, el('div', { sinif: 'satir-ici sarmal' },
@@ -6737,7 +6743,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         el('td', null, silDugmesi('Satırı sil', function (x) { return P().satirSil(x, listeAdi, r.ad, kullanim); }, 'satır silindi: ' + r.ad, '"' + etiket(r, r.ad) + '" satırı silinsin mi?')));
     }));
     ekle(govde, el('div', { sinif: 'tablo-kap' }, el('table', { sinif: 'liste-tablosu' }, el('thead', null, bas), govdeT)));
-    degerCubugu(govde);
+    degerCubugu(govde, tur === 'sabit' || tur === 'oran');
     ekle(govde, yeniSatirFormu(listeAdi, l, tur), yeniSutunFormu(listeAdi, tur));
   }
 
@@ -6830,7 +6836,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     ekle(govde, el('div', { sinif: 'tablo-kap' }, el('table', null,
       el('thead', null, el('tr', null, ['Parametre', 'Değer (yeni)', 'Birim', 'Görevi / açıklama', ''].map(function (b) { return el('th', { metin: b }); }))),
       el('tbody', null, satirlar))));
-    degerCubugu(govde);
+    degerCubugu(govde, true);
     const f = ek.yeniGenel;
     ekle(govde, kucukForm('+ Yeni genel ayar', [
       metin(f, 'label_tr', 'Görünen ad', { placeholder: 'Genel gider oranı' }),
