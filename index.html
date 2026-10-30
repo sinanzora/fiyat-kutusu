@@ -373,6 +373,9 @@ function urunMetni(katalog, sonuc) {
 // Kur izi: sonuçtaki kur parametresi kullanılan parametrelerde olmalı, yönü "TRY/<para birimi>"
 // (CRM: 1 [para birimi] = X TRY). fx_date = kur değerinin yürürlük tarihi.
 function kurIzi(sonuc) {
+  // CRM revizyonu tek TL kuru taşır: TL dışı kaynaktan çevrilmiş satır (çok döviz, 30 Ekim) taşınamaz, fail-closed.
+  const yabanci = (sonuc.satirlar || []).some(function (x) { return x.kaynak_para_birimi !== null && x.kaynak_para_birimi !== undefined && x.kaynak_para_birimi !== sonuc.para_birimi && x.kaynak_para_birimi !== 'TRY'; });
+  if (yabanci) throw hata('CRM_COKLU_KUR_TASINAMAZ');
   if (sonuc.kur === null || sonuc.kur === undefined) return { fx_rate_micro: null, fx_date: null };
   // CRM CHECK: currency TRY iken kur izi olamaz. Ayrı kod (Fable FH2a şart c); gevşetme kararı FH6/FH9'da.
   if (sonuc.para_birimi === 'TRY') throw hata('CRM_KUR_IZI_TRY_TEKLIFTE_TASINAMAZ');
@@ -421,7 +424,7 @@ module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIM
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "c44e6dd2f7e815da663d5f03b7a2c1381a23c56b3fa906dde6bb3cf57cfd67ac" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "ae16a7d6fda2fe66d32619b63a2f3dabfef287d259b44b3693b0aa1627db047a" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -753,10 +756,19 @@ function dogrula(katalog, secenekler) {
   const genel = katalog.genel_ayarlar;
   if (genel !== undefined && sekil(function () { Sk.genelAyarlarSekli(genel); })) {
     bilinmeyen(genel, S.ALANLAR.genel_ayarlar, { yer: 'genel_ayarlar' });
-    const adlar = (genel.parametreler || []).concat([genel.kur, genel.yuvarlama_adimi].filter(function (x) { return x !== undefined; }));
+    const adlar = (genel.parametreler || []).concat(genel.kurlar || [], [genel.kur, genel.yuvarlama_adimi].filter(function (x) { return x !== undefined; }));
     for (const ad of adlar) {
       if (!paramVar(ad)) engel('PARAMETRE_TANIMSIZ', { yer: 'genel_ayarlar', parametre: ad });
       else urunParam.add(ad);
+    }
+    // Genel kur listesi (çok döviz, Fable 30 Ekim): her biri "A/B" = "1 B = k A" kuru (A ≠ B, ikisi de geçerli para
+    // birimi); hangi ürünlerin kullanacağı ürünün para birimine göre seçilir, burada yalnız biçimi denetlenir.
+    for (const ad of genel.kurlar || []) {
+      if (!paramVar(ad) || !gecerliParam[ad]) continue;
+      const p = params[ad];
+      const hedef = typeof p.birim === 'string' ? p.birim.split('/')[0] : '';
+      const neden = U.kurYonu(p, hedef) === null ? 'birim' : U.parametreUyumsuzlugu(p, U.beklenenParametre('kur', p.birim, hedef), hedef);
+      if (neden) engel('URUN_PARAMETRE_UYUMSUZ', { yer: 'genel_ayarlar', ayar: 'kurlar', parametre: ad, neden });
     }
   }
   const genelAyar = genel !== undefined && Sk.nesneMi(genel) ? genel : {};
@@ -830,7 +842,7 @@ function dogrula(katalog, secenekler) {
       return true;
     };
     // Parametre başvurusu: var mı, türü/birimi/para birimi kullanıma uygun mu (Fable S5, v1.3 §12.2).
-    let tryVar = false;
+    const yabanciPb = new Set(); // ürününkinden başka para birimli satırlar: her biri için kur gerekir
     const parametreDenetle = function (ad, tip, kumasBirimi, yer) {
       const y = Object.assign({ parametre: ad }, yer);
       if (!paramVar(ad)) { engel('PARAMETRE_TANIMSIZ', y); return; }
@@ -838,7 +850,7 @@ function dogrula(katalog, secenekler) {
       if (!gecerliParam[ad] || !pbGecerli) return;
       const neden = U.parametreUyumsuzlugu(params[ad], U.beklenenParametre(tip, kumasBirimi, tanim.para_birimi), tanim.para_birimi);
       if (neden) engel('URUN_PARAMETRE_UYUMSUZ', Object.assign({ neden }, y));
-      else if (params[ad].para_birimi === S.KUR_KAYNAGI && tanim.para_birimi !== S.KUR_KAYNAGI && tip !== 'kur') tryVar = true;
+      else if (tip !== 'kur' && params[ad].para_birimi !== null && params[ad].para_birimi !== tanim.para_birimi) yabanciPb.add(params[ad].para_birimi);
     };
     // Kalem adı: kumaş satırının adı alınamaz; aynı alanın farklı seçenekleri aynı adı paylaşabilir
     // (biri seçilir), farklı alanlar ve ürün kalemleri paylaşamaz.
@@ -990,7 +1002,19 @@ function dogrula(katalog, secenekler) {
     // Kur ve yuvarlama adımı: üründe, yoksa genel ayarlarda. TRY satırı varsa kur zorunlu.
     const kurAdi = tanim.kur !== undefined ? tanim.kur : genelAyar.kur;
     const adimAdi = tanim.yuvarlama_adimi !== undefined ? tanim.yuvarlama_adimi : genelAyar.yuvarlama_adimi;
-    if (kurAdi !== undefined) parametreDenetle(kurAdi, 'kur', null, Object.assign({ ayar: 'kur' }, uy));
+    // Eski `kur` alanı TRY kaynaklıdır: birimi "TRY/<pb>" ya da çarpan yönlü "<pb>/TRY" (hesabın seçimiyle aynı).
+    if (kurAdi !== undefined) {
+      const y = pbGecerli && paramVar(kurAdi) ? U.kurYonu(params[kurAdi], tanim.para_birimi) : null;
+      parametreDenetle(kurAdi, 'kur', y !== null && y.kaynak === S.KUR_KAYNAGI ? params[kurAdi].birim : null, Object.assign({ ayar: 'kur' }, uy));
+    }
+    // Ürünün kur listesi: her biri bu ürünün para birimini içermeli ("<kaynak>/<pb>" ya da "<pb>/<kaynak>").
+    for (const ad of tanim.kurlar || []) {
+      const ky = Object.assign({ ayar: 'kurlar' }, uy);
+      if (paramVar(ad) && gecerliParam[ad] && pbGecerli && U.kurKaynagi(params[ad], tanim.para_birimi) === null) {
+        urunParam.add(ad);
+        engel('URUN_PARAMETRE_UYUMSUZ', Object.assign({ parametre: ad, neden: 'birim' }, ky));
+      } else parametreDenetle(ad, 'kur', paramVar(ad) && pbGecerli && U.kurKaynagi(params[ad], tanim.para_birimi) !== null ? params[ad].birim : null, ky);
+    }
     if (adimAdi !== undefined) parametreDenetle(adimAdi, 'yuvarlama', null, Object.assign({ ayar: 'yuvarlama_adimi' }, uy));
     // Ara değerler: yalnız sayı alanlarını ve önceki ara değerleri görür.
     const sayiAlanlari = new Set(u.alanlar.filter(function (a) { return a.tur === 'sayi'; }).map(function (a) { return a.ad; }));
@@ -1044,7 +1068,8 @@ function dogrula(katalog, secenekler) {
         parametreDenetle(n, 'formul', null, f.ky);
         // Kur ya da yuvarlama adımı olarak kullanılan parametre formülde düz sayı okunur (birim analizi yok):
         // büyük olasılıkla yanlışlık, engel değil (Fable S-1b-2 P4-2).
-        const ayar = n === kurAdi || n === genelAyar.kur ? 'kur' : n === adimAdi || n === genelAyar.yuvarlama_adimi ? 'yuvarlama_adimi' : null;
+        const kurMu = n === kurAdi || n === genelAyar.kur || (tanim.kurlar || []).indexOf(n) !== -1 || (genelAyar.kurlar || []).indexOf(n) !== -1;
+        const ayar = kurMu ? 'kur' : n === adimAdi || n === genelAyar.yuvarlama_adimi ? 'yuvarlama_adimi' : null;
         if (ayar) uyari('FORMUL_AYAR_PARAMETRESI', Object.assign({ parametre: n, ayar }, f.ky));
         const ppb = gecerliParam[n] ? params[n].para_birimi : null;
         if (ppb === null || ppb === undefined) continue;
@@ -1053,8 +1078,15 @@ function dogrula(katalog, secenekler) {
       }
       bolmeDenetle(c.agac, null, f.ky);
     }
-    // TRY okuyan satır (kumaş, tipli kalem ya da formül) varsa kur zorunlu.
-    if (tryVar && kurAdi === undefined) engel('KUR_PARAMETRESI_YOK', uy);
+    // Başka para birimli satır (kumaş, tipli kalem ya da formül) varsa o para biriminin kuru tam bir tane
+    // olmalı; seçim hesabınkiyle AYNI fonksiyon (urun.cjs kurSecimi).
+    if (pbGecerli) {
+      for (const x of yabanciPb) {
+        const s = U.kurSecimi(tanim, genelAyar, params, tanim.para_birimi, x);
+        if (s.kod === 'KUR_BELIRSIZ') engel('KUR_BELIRSIZ', Object.assign({ para_birimi: x, adlar: s.adlar }, uy));
+        else if (s.kod) engel('KUR_PARAMETRESI_YOK', Object.assign({ para_birimi: x }, uy));
+      }
+    }
     // Hiçbir hesabın okumadığı ara değer: uyarı (ayrılmış adlardan ve formül kalemlerinden ulaşılamayan).
     const ulasilanAra = new Set();
     const yigin = formulAra.slice();
@@ -3103,6 +3135,7 @@ function listeSekli(ad, l) {
 function genelAyarlarSekli(g) {
   if (!nesneMi(g)) throw kBozuk('genel_ayarlar', null);
   metinDizisi(g, 'parametreler', 'genel_ayarlar', null, true);
+  metinDizisi(g, 'kurlar', 'genel_ayarlar', null, true);
   for (const alan of ['kur', 'yuvarlama_adimi']) metinAlan(g, alan, 'genel_ayarlar', null, true);
 }
 
@@ -3127,6 +3160,7 @@ function urunSekli(ad, u) {
   if (!nesneMi(u)) throw kBozuk('urun', ad);
   metinAlan(u, 'para_birimi', 'urun', ad);
   for (const alan of ['label_tr', 'label_en', 'aciklama', 'kur', 'yuvarlama_adimi', 'kategori', 'kumas_sutunu', 'kumas_sutun_alani']) metinAlan(u, alan, 'urun', ad, true);
+  metinDizisi(u, 'kurlar', 'urun', ad, true);
   govdeSekli(u, 'urun', ad, true);
 }
 
@@ -3227,7 +3261,7 @@ const ALANLAR = Object.freeze({
   deger: ['deger', 'yururluk', 'kaynak', 'kaynak_turu', 'alinma_tarihi', 'not', 'giren', 'giris_zamani'],
   marj: ['asgari_adet', 'kademeler'],
   kademe: ['alt', 'ust', 'oran'],
-  urun: ['label_tr', 'label_en', 'para_birimi', 'alanlar', 'ara_degerler', 'kalemler', 'aciklama', 'kur', 'yuvarlama_adimi',
+  urun: ['label_tr', 'label_en', 'para_birimi', 'alanlar', 'ara_degerler', 'kalemler', 'aciklama', 'kur', 'kurlar', 'yuvarlama_adimi',
     'kategori', 'kumas_sutunu', 'kumas_sutun_alani'],
   kategori: ['label_tr', 'label_en', 'aciklama', 'alanlar', 'ara_degerler', 'kalemler'],
   urun_alani: ['ad', 'tur', 'label_tr', 'label_en', 'birim', 'min', 'max', 'adim', 'secenekler', 'aciklama',
@@ -3236,7 +3270,7 @@ const ALANLAR = Object.freeze({
   liste: ['label_tr', 'label_en', 'aciklama', 'sutunlar', 'satirlar'],
   liste_sutunu: ['ad', 'label_tr', 'label_en', 'tur', 'yedek'],
   liste_satiri: ['ad', 'label_tr', 'label_en', 'birim', 'para_birimi', 'hucreler', 'ozellikler', 'aciklama'],
-  genel_ayarlar: ['parametreler', 'kur', 'yuvarlama_adimi'],
+  genel_ayarlar: ['parametreler', 'kur', 'kurlar', 'yuvarlama_adimi'],
   urun_kalemi: ['kalem', 'label_tr', 'label_en', 'tip', 'deger', 'matrah', 'bicim', 'aciklama', 'ifade', 'ara_toplama_girer'],
   ara_deger: ['ad', 'ifade', 'birim', 'label_tr', 'label_en'],
 });
@@ -3489,17 +3523,19 @@ function damga(ozetler) {
 }
 
 // Kumaşın, kalemin, kurun ve yuvarlama adımının parametresinden beklenen tür, birim ve para birimi
-// (Fable S5, v1.3 §12.2). para: 'urun_ya_da_try' (ürününki ya da kurla çevrilen TRY) | 'urun' | 'yok' | null.
+// (Fable S5, v1.3 §12.2). para: 'para_birimli' (ürününki ya da kurla çevrilen başka para birimi; Fable
+// 30 Ekim çok döviz) | 'urun' | 'yok' | null. Kurda ikinci bağımsız değişken beklenen birimdir (yoksa "TRY/<pb>").
 function beklenenParametre(tip, kumasBirimi, pb) {
-  if (tip === 'kumas') return { tur: 'fiyat', birim: kumasBirimi, para: 'urun_ya_da_try' };
-  // Fark sütunu hücresi (ör. boyama farkı): kumaşın biriminde sabit; ürünün para birimi ya da TRY.
-  if (tip === 'kumas_fark') return { tur: 'sabit', birim: kumasBirimi, para: 'urun_ya_da_try' };
-  if (tip === 'adet_basina') return { tur: 'sabit', birim: 'adet', para: 'urun_ya_da_try' };
-  if (tip === 'kg_basina') return { tur: 'sabit', birim: 'kg', para: 'urun_ya_da_try' };
-  if (tip === 'kur') return { tur: 'sabit', birim: S.KUR_KAYNAGI + '/' + pb, para: 'yok' };
+  if (tip === 'kumas') return { tur: 'fiyat', birim: kumasBirimi, para: 'para_birimli' };
+  // Fark sütunu hücresi (ör. boyama farkı): kumaşın biriminde sabit; para birimli.
+  if (tip === 'kumas_fark') return { tur: 'sabit', birim: kumasBirimi, para: 'para_birimli' };
+  if (tip === 'adet_basina') return { tur: 'sabit', birim: 'adet', para: 'para_birimli' };
+  if (tip === 'kg_basina') return { tur: 'sabit', birim: 'kg', para: 'para_birimli' };
+  if (tip === 'kur') return { tur: 'sabit', birim: kumasBirimi || S.KUR_KAYNAGI + '/' + pb, para: 'yok' };
   if (tip === 'yuvarlama') return { tur: 'sabit', birim: null, para: 'urun' };
-  // Formül kalemi her türden parametre okur; para birimi yok, ürününki ya da TRY (v1.6 K2-a).
-  if (tip === 'formul') return { tur: null, birim: null, para: 'yok_urun_ya_da_try' };
+  // Formül kalemi her türden parametre okur; para birimsiz ya da para birimli (v1.6 K2-a); birden çok para
+  // birimini karıştırması formulKalemi'nde yakalanır, başka para birimi kurla çevrilir.
+  if (tip === 'formul') return { tur: null, birim: null, para: null };
   return { tur: 'oran', birim: null, para: null };
 }
 
@@ -3507,11 +3543,43 @@ function beklenenParametre(tip, kumasBirimi, pb) {
 function parametreUyumsuzlugu(p, beklenen, pb) {
   if (beklenen.tur !== null && p.tur !== beklenen.tur) return 'tur';
   if (beklenen.birim !== null && p.birim !== beklenen.birim) return 'birim';
-  if (beklenen.para === 'urun_ya_da_try' && p.para_birimi !== pb && p.para_birimi !== S.KUR_KAYNAGI) return 'para_birimi';
+  if (beklenen.para === 'para_birimli' && S.PARA_BIRIMLERI.indexOf(p.para_birimi) === -1) return 'para_birimi';
   if (beklenen.para === 'urun' && p.para_birimi !== pb) return 'para_birimi';
   if (beklenen.para === 'yok' && p.para_birimi !== null) return 'para_birimi';
-  if (beklenen.para === 'yok_urun_ya_da_try' && p.para_birimi !== null && p.para_birimi !== pb && p.para_birimi !== S.KUR_KAYNAGI) return 'para_birimi';
   return null;
+}
+
+// Kur seçimi (Fable 30 Ekim, çok döviz). Kurun birimi "A/B" = "1 B = k A"; yönü parametre açıkça beyan eder:
+// ürün B'de ise A tutarı k'ya BÖLÜNÜR ("1 € = k $": USD/EUR), ürün A'da ise B tutarı k ile ÇARPILIR ("1 $ = k TL"
+// TL üründe: TRY/USD). Otomatik ters çevirme yok. Ürünün tek `kur`u (eski alan) TRY kaynaklıdır; `kurlar`
+// listesindekilerin kaynağı birimlerinden okunur. Aynı kaynağa iki yönde kur = iki aday = KUR_BELIRSIZ.
+// Önce üründe (kur + kurlar), orada o kaynak için aday yoksa genel ayarlarda. Tam BİR aday kullanılır; hiç
+// yoksa KUR_PARAMETRESI_YOK, birden çoksa KUR_BELIRSIZ (sessiz ilk seçim yok). Çapraz kur türetilmez.
+// Hesap ve doğrulayıcı aynı seçimi görür.
+function kurYonu(p, pb) {
+  if (!p || typeof p.birim !== 'string') return null;
+  const parca = p.birim.split('/');
+  if (parca.length !== 2 || parca[0] === parca[1]) return null;
+  if (S.PARA_BIRIMLERI.indexOf(parca[0]) === -1 || S.PARA_BIRIMLERI.indexOf(parca[1]) === -1) return null;
+  if (parca[1] === pb) return { kaynak: parca[0], yon: 'bol' };
+  if (parca[0] === pb) return { kaynak: parca[1], yon: 'carp' };
+  return null;
+}
+function kurKaynagi(p, pb) {
+  const y = kurYonu(p, pb);
+  return y === null ? null : y.kaynak;
+}
+function kurSecimi(tanim, genel, parametreler, pb, kaynak) {
+  for (const t of [tanim, genel]) {
+    const adaylar = [];
+    if (t.kur !== undefined && kaynak === S.KUR_KAYNAGI) adaylar.push(t.kur);
+    for (const ad of t.kurlar || []) {
+      if (adaylar.indexOf(ad) === -1 && kurKaynagi(al(parametreler, ad), pb) === kaynak) adaylar.push(ad);
+    }
+    if (adaylar.length === 1) return { ad: adaylar[0] };
+    if (adaylar.length > 1) return { kod: 'KUR_BELIRSIZ', adlar: adaylar };
+  }
+  return { kod: 'KUR_PARAMETRESI_YOK' };
 }
 
 // Listenin fark/yedek sütun kusuru ({ kod, sutun }) ya da null; hesap ve doğrulayıcı AYNI kuralı görür.
@@ -3859,24 +3927,39 @@ function hesaplaIc(katalog, istek, ozetler) {
     return kullanilan[ad].deger_d;
   }
 
-  // Kur (v1.3 §12.2): TRY satırı ürünün para birimine "1 birim = k TRY" kuruyla çevrilir. Kur parametresi
-  // üründe, yoksa genel ayarlarda; yalnız TRY satırı varsa okunur. Değeri yoksa fiyat yok.
-  const kurParametresi = tanim.kur !== undefined ? tanim.kur : genel.kur;
-  let kurOkundu = false;
-  let kurDegeri = null;
-  function kurAl() {
-    if (!kurOkundu) {
-      kurOkundu = true;
-      if (kurParametresi === undefined) throw hata('KUR_PARAMETRESI_YOK', { urun: urunAdi });
-      kurDegeri = parametreOku(kurParametresi, 'kur', null);
-      if (kurDegeri !== null && kurDegeri <= 0n) throw hata('KUR_GECERSIZ', { urun: urunAdi, ad: kurParametresi });
+  // Kur (v1.3 §12.2; çok döviz Fable 30 Ekim): başka para birimindeki satır "1 <ürün pb> = k <kaynak>" kuruyla
+  // çevrilir (kurSecimi). Kur yalnız o para biriminde satır varsa okunur; değeri yoksa fiyat yok.
+  const kurlar = Object.create(null); // kaynak para birimi → { ad, deger, yon }
+  function kurAl(kaynak) {
+    if (!kurlar[kaynak]) {
+      for (const ad of tanim.kurlar || []) {
+        const p = al(katalog.parametreler, ad);
+        if (!p) throw hata('PARAMETRE_TANIMSIZ', { urun: urunAdi, ad });
+        if (kurKaynagi(p, pb) === null) throw hata('URUN_PARAMETRE_UYUMSUZ', { urun: urunAdi, ad, neden: 'birim' });
+      }
+      const s = kurSecimi(tanim, genel, katalog.parametreler, pb, kaynak);
+      if (s.kod === 'KUR_BELIRSIZ') throw hata('KUR_BELIRSIZ', { urun: urunAdi, para_birimi: kaynak, adlar: s.adlar });
+      if (s.kod) throw hata('KUR_PARAMETRESI_YOK', { urun: urunAdi, para_birimi: kaynak });
+      // Beklenen birim: yönünü beyan eden kurun kendi birimi; eski `kur` alanında başka biçim "TRY/<pb>" ile reddedilir.
+      const y = kurYonu(al(katalog.parametreler, s.ad), pb);
+      const birimi = y !== null && y.kaynak === kaynak ? katalog.parametreler[s.ad].birim : null;
+      const deger = parametreOku(s.ad, 'kur', birimi);
+      if (deger !== null && deger <= 0n) throw hata('KUR_GECERSIZ', { urun: urunAdi, ad: s.ad });
+      kurlar[kaynak] = { ad: s.ad, deger, yon: y !== null && y.kaynak === kaynak ? y.yon : 'bol' };
     }
-    return kurDegeri;
+    return kurlar[kaynak].deger;
   }
-  // Okunmuş parametrenin tutarını ürünün para birimine indiren bölen (ölçekli): aynı para birimi
-  // → 1 (OLCEK), TRY → kur; kur eksikse null.
+  // Okunmuş parametrenin tutarını ürünün para birimine indiren kesir: tutar = değer × carpan / bolen (ölçekli).
+  // Aynı para birimi → 1 / OLCEK; bölen yönlü kur → 1 / kur; çarpan yönlü kur → kur / OLCEK²; kur eksikse bolen null.
   function bolen(ad) {
-    return katalog.parametreler[ad].para_birimi === pb ? D.OLCEK : kurAl();
+    const ppb = katalog.parametreler[ad].para_birimi;
+    if (ppb === pb) return D.OLCEK;
+    const k = kurAl(ppb);
+    return k !== null && kurlar[ppb].yon === 'carp' ? OO : k;
+  }
+  function carpan(ad) {
+    const ppb = katalog.parametreler[ad].para_birimi;
+    return ppb !== pb && kurlar[ppb] && kurlar[ppb].yon === 'carp' ? kurlar[ppb].deger : 1n;
   }
   // Listeden gelen seçeneğin hücre parametresi satırın birimini ve para birimini taşımalı.
   function hucreUyumu(secenek, ad) {
@@ -3891,7 +3974,7 @@ function hesaplaIc(katalog, istek, ozetler) {
   function kurAlanlari(ad, kaynakTutar) {
     const ppb = katalog.parametreler[ad].para_birimi;
     if (ppb === pb || ppb === null) return { kaynak_para_birimi: ppb };
-    return { kaynak_para_birimi: ppb, kaynak_tutar: kaynakTutar, kur_parametresi: kurParametresi, kur_degeri: kullanilan[kurParametresi].goruntu.deger };
+    return { kaynak_para_birimi: ppb, kaynak_tutar: kaynakTutar, kur_parametresi: kurlar[ppb].ad, kur_degeri: kullanilan[kurlar[ppb].ad].goruntu.deger };
   }
 
   // Satır kaydı: bütün alanlar her satırda vardır (kullanılmayan null).
@@ -3977,9 +4060,11 @@ function hesaplaIc(katalog, istek, ozetler) {
     let fiyat = parametreOku(fiyatAdi, 'kumas', kumas.birim, yedek !== null);
     hucreUyumu(kumas, fiyatAdi);
     let k = null;
+    let c = 1n;
     let ek = {};
     if (fiyat !== null || yedek === null) {
       k = bolen(fiyatAdi);
+      if (k !== null) c = carpan(fiyatAdi);
     } else {
       const taban = parametreOku(yedek.taban, 'kumas', kumas.birim);
       hucreUyumu(kumas, yedek.taban);
@@ -3989,17 +4074,19 @@ function hesaplaIc(katalog, istek, ozetler) {
       if (taban === null || fark === null || k1 === null || k2 === null) {
         eksikEkle({ tur: 'parametre', ad: fiyatAdi });
       } else {
-        fiyat = taban * k2 + fark * k1;
+        fiyat = taban * carpan(yedek.taban) * k2 + fark * carpan(yedek.fark) * k1;
         k = k1 * k2;
         const tpb = katalog.parametreler[yedek.taban].para_birimi;
         const fpb = katalog.parametreler[yedek.fark].para_birimi;
         const cevrildi = tpb !== pb || fpb !== pb;
+        // İz: çevrilen yarının kuru (ikisi de çevrildiyse tabanınki; tutar iki kurla da tek yuvarlamada).
+        const kpb = tpb !== pb ? tpb : fpb;
         ek = {
           fiyat_kaynagi: 'yedek',
           taban_parametresi: yedek.taban, taban_degeri: kullanilan[yedek.taban].goruntu.deger, taban_para_birimi: tpb,
           fark_parametresi: yedek.fark, fark_degeri: kullanilan[yedek.fark].goruntu.deger, fark_para_birimi: fpb,
-          kaynak_para_birimi: cevrildi ? S.KUR_KAYNAGI : pb, kaynak_tutar: null,
-          kur_parametresi: cevrildi ? kurParametresi : null, kur_degeri: cevrildi ? kullanilan[kurParametresi].goruntu.deger : null,
+          kaynak_para_birimi: kpb, kaynak_tutar: null,
+          kur_parametresi: cevrildi ? kurlar[kpb].ad : null, kur_degeri: cevrildi ? kullanilan[kurlar[kpb].ad].goruntu.deger : null,
         };
       }
     }
@@ -4009,7 +4096,7 @@ function hesaplaIc(katalog, istek, ozetler) {
     if (kumas.birim === 'kg') {
       miktar = araDeger(S.URUN_AGIRLIK, S.URUN_KUMAS_KALEMI);
       if (fiyat !== null && miktar !== null && k !== null) {
-        tutar = D.kesirdenHane(fiyat * miktar, D.OLCEK * k, HANE);
+        tutar = D.kesirdenHane(fiyat * c * miktar, D.OLCEK * k, HANE);
         if (!ek.fiyat_kaynagi) kaynakTutar = D.kesirdenHane(fiyat * miktar, OO, D.OLCEK_HANE);
       }
     } else {
@@ -4018,7 +4105,7 @@ function hesaplaIc(katalog, istek, ozetler) {
         // Metre = alan (m²) ÷ en (m) = alan × 100 / en (cm). Tutar tek yuvarlamayla (kur dahil).
         miktar = D.kesirdenHane(alan * 100n, en, D.OLCEK_HANE);
         if (fiyat !== null && k !== null) {
-          tutar = D.kesirdenHane(fiyat * alan * 100n, en * k, HANE);
+          tutar = D.kesirdenHane(fiyat * c * alan * 100n, en * k, HANE);
           if (!ek.fiyat_kaynagi) kaynakTutar = D.kesirdenHane(fiyat * alan * 100n, D.OLCEK * en, D.OLCEK_HANE);
         }
       }
@@ -4145,9 +4232,10 @@ function hesaplaIc(katalog, istek, ozetler) {
     }
     const k2 = paraAdi === null ? D.OLCEK : bolen(paraAdi);
     if (k2 === null) return;
+    const c2 = paraAdi === null ? 1n : carpan(paraAdi);
     const satir = Object.assign({
       kalem: k.kalem, label_tr: k.label_tr, label_en: k.label_en, tip: 'formul', kaynak: x.kaynak, parametre: null,
-      formul: { ifade: k.ifade, degerler: gosterim }, ara_toplama_girer: k.ara_toplama_girer !== false, tutar: D.kesirdenHane(v, k2, HANE),
+      formul: { ifade: k.ifade, degerler: gosterim }, ara_toplama_girer: k.ara_toplama_girer !== false, tutar: D.kesirdenHane(v * c2, k2, HANE),
     }, paraAdi === null ? {} : kurAlanlari(paraAdi, v));
     if (satir.ara_toplama_girer) satirEkle(satir);
     else sonraEklenecek.push(satir);
@@ -4158,14 +4246,15 @@ function hesaplaIc(katalog, istek, ozetler) {
     const birimTutar = parametreOku(ad, x.k.tip);
     if (x.secenek) hucreUyumu(x.secenek, ad);
     const k = bolen(ad);
+    const c = k === null ? 1n : carpan(ad);
     if (x.k.tip === 'adet_basina') {
       if (birimTutar !== null && k !== null) {
-        satirEkle(Object.assign(ortakAlanlar(x), { ara_toplama_girer: true, tutar: D.kesirdenHane(birimTutar, k, HANE) }, kurAlanlari(ad, birimTutar)));
+        satirEkle(Object.assign(ortakAlanlar(x), { ara_toplama_girer: true, tutar: D.kesirdenHane(birimTutar * c, k, HANE) }, kurAlanlari(ad, birimTutar)));
       }
     } else {
       const agirlik = araDeger(S.URUN_AGIRLIK, x.k.kalem);
       if (birimTutar !== null && agirlik !== null && k !== null) {
-        satirEkle(Object.assign(ortakAlanlar(x), { miktar: agirlik, miktar_birimi: 'kg', ara_toplama_girer: true, tutar: D.kesirdenHane(birimTutar * agirlik, D.OLCEK * k, HANE) },
+        satirEkle(Object.assign(ortakAlanlar(x), { miktar: agirlik, miktar_birimi: 'kg', ara_toplama_girer: true, tutar: D.kesirdenHane(birimTutar * agirlik * c, D.OLCEK * k, HANE) },
           kurAlanlari(ad, D.kesirdenHane(birimTutar * agirlik, OO, D.OLCEK_HANE))));
       }
     }
@@ -4235,7 +4324,8 @@ function hesaplaIc(katalog, istek, ozetler) {
     yuvarlama: adimParametresi === undefined ? null : { parametre: adimParametresi, adim: kullanilan[adimParametresi].goruntu.deger },
     birim_fiyat: tutarMetni(birimFiyat),
     toplam: tutarMetni(toplam),
-    kur: kurOkundu ? { parametre: kurParametresi, deger: kullanilan[kurParametresi].goruntu.deger } : null,
+    // `kur` TRY kurudur (eski biçim; CRM fx izi). Başka kaynaklı kurlar satır izinde ve kullanılan parametrelerde.
+    kur: kurlar[S.KUR_KAYNAGI] ? { parametre: kurlar[S.KUR_KAYNAGI].ad, deger: kullanilan[kurlar[S.KUR_KAYNAGI].ad].goruntu.deger } : null,
     kaydedilebilir: parametreGoruntuleri.every(function (g) { return !g.bayat || g.bayat_onaylandi; }),
   }, ortak);
 }
@@ -4249,7 +4339,7 @@ function urunAcilimi(katalog, urunAdi) {
   return dondur(JSON.parse(JSON.stringify(urunGenislet(katalog, urunAdi, urunBirlestir(katalog, urunAdi, tanim)))));
 }
 
-module.exports = { urunHesapla, urunBirlestir, urunGenislet, urunAcilimi, listeYedekEngeli, formulAdiCoz, beklenenParametre, parametreUyumsuzlugu, matrahi, bicimi };
+module.exports = { urunHesapla, urunBirlestir, urunGenislet, urunAcilimi, listeYedekEngeli, formulAdiCoz, beklenenParametre, parametreUyumsuzlugu, kurYonu, kurKaynagi, kurSecimi, matrahi, bicimi };
 
     },
   };
@@ -4552,7 +4642,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     FORMUL_DERIN: 'Formülde çok fazla iç içe parantez',
     // ürün akışı (S-1b, S-2b)
     URUN_PARAMETRE_UYUMSUZ: 'Parametrenin türü, birimi ya da para birimi bu kullanıma uymuyor',
-    KUR_PARAMETRESI_YOK: 'TL satırı var ama kur parametresi tanımlı değil (ürün ya da genel ayarlar)',
+    KUR_PARAMETRESI_YOK: 'Bu para birimindeki satır için kur parametresi tanımlı değil (ürün ya da genel ayarlar)',
+    KUR_BELIRSIZ: 'Aynı para birimi için birden çok kur var; hangisinin kullanılacağı belirsiz',
     LISTE_HUCRE_UYUMSUZ: 'Liste hücresindeki parametre satırın birimi/para birimiyle uyuşmuyor',
     LISTE_OZELLIK_YOK: 'Formül kalıbının okuduğu özellik bu liste satırında tanımlı değil',
     FORMUL_ALAN_SAYI_DEGIL: 'Formül yalnız sayı alanını okuyabilir; seçim ve kumaş alanı sayı değildir',
@@ -5113,6 +5204,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       const u = k.urunler[ad];
       govde(u, 'ürün ' + ad);
       if (u.kur !== undefined) ekle(u.kur, 'ürün ' + ad + ' (kur)');
+      for (const kurAdi of u.kurlar || []) ekle(kurAdi, 'ürün ' + ad + ' (kur listesi)');
       if (u.yuvarlama_adimi !== undefined) ekle(u.yuvarlama_adimi, 'ürün ' + ad + ' (yuvarlama)');
     }
     for (const ad of Object.keys(k.listeler || {})) {
@@ -5121,6 +5213,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const g = k.genel_ayarlar || {};
     for (const ad of g.parametreler || []) ekle(ad, 'genel ayarlar');
     if (g.kur !== undefined) ekle(g.kur, 'genel ayarlar (kur)');
+    for (const kurAdi of g.kurlar || []) ekle(kurAdi, 'genel ayarlar (kur listesi)');
     if (g.yuvarlama_adimi !== undefined) ekle(g.yuvarlama_adimi, 'genel ayarlar (yuvarlama)');
     return yerler;
   }
@@ -5138,6 +5231,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     adet_basina: 'Adet başına tutar: her ürüne aynen eklenir.',
     kg_basina: 'Kg başına tutar: ürün ağırlığı × bu tutar.',
     kur: 'Kur: TL tutarlar bu kurla ürünün para birimine çevrilir.',
+    kurListesi: 'Kur: birimindeki para birimiyle yazılan tutarlar ("1 ürün para birimi = k kaynak") bu kurla ürünün para birimine çevrilir.',
     yuvarlama: 'Satış fiyatı bu adımın katına yukarı yuvarlanır.',
     genel: 'Genel ayar: bütün ürünler buradan okur.',
     yok: 'Henüz hesaba bağlı değil: bir ürün ya da kategoride kaleme bağlayın.',
@@ -5177,6 +5271,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       }
       kalemler(u.kalemler);
       if (u.kur !== undefined) ekle(u.kur, ROL.kur);
+      for (const kurAdi of u.kurlar || []) ekle(kurAdi, ROL.kurListesi);
       if (u.yuvarlama_adimi !== undefined) ekle(u.yuvarlama_adimi, ROL.yuvarlama);
     };
     for (const ad of Object.keys(k.kategoriler || {})) govde(k.kategoriler[ad]);
@@ -5199,6 +5294,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     }
     const g = k.genel_ayarlar || {};
     if (g.kur !== undefined) ekle(g.kur, ROL.kur);
+    for (const kurAdi of g.kurlar || []) ekle(kurAdi, ROL.kurListesi);
     if (g.yuvarlama_adimi !== undefined) ekle(g.yuvarlama_adimi, ROL.yuvarlama);
     for (const ad of g.parametreler || []) if (!roller[ad]) ekle(ad, ROL.genel);
     const metin = Object.create(null);
@@ -5671,6 +5767,18 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
 
   function kur(a) { api = a; }
 
+  // Her değer tek ekrandan değişir (kullanıcı kararı, 30 Ekim: ikilik yok). Liste hücresi Listeler'den,
+  // genel ayar Genel ayarlar'dan; ikisinde de olan Listeler'den. Burada yalnız gösterilir.
+  function degerYeri(k) {
+    const yer = {};
+    for (const l of Object.keys(k.listeler || {}).map(function (a) { return k.listeler[a]; })) {
+      for (const r of l.satirlar || []) for (const s of Object.keys(r.hucreler || {})) yer[r.hucreler[s]] = 'liste';
+    }
+    for (const ad of (k.genel_ayarlar && k.genel_ayarlar.parametreler) || []) if (!yer[ad]) yer[ad] = 'genel';
+    return yer;
+  }
+  const YER_METNI = { liste: "Listeler'de değiştirilir", genel: "Genel ayarlar'da değiştirilir" };
+
   function gunFarki(tarih, bugun) {
     const a = Date.parse(tarih + 'T00:00:00Z');
     const b = Date.parse(bugun + 'T00:00:00Z');
@@ -5740,9 +5848,9 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } catch (e) {
       if (!e || !e.kod) throw e;
       const a = e.ayrinti || {};
-      // Kaynak kutusu yalnız fiyat ekranlarında (Tüm fiyatlar, kumaş listesi) görünür: Genel ayarlardan
-      // Kaydet'e basılmışsa nerede doldurulacağı söylenir (Fable P5).
-      const nerede = a.alanlar && fiyatVar ? ' Kaynak bilgisi "Tüm fiyatlar" ya da kumaş listesi sekmesinde; oradaki yazılmış fiyatları önce o sekmede tamamlayın.' : '';
+      // Kaynak kutusu yalnız fiyat ekranlarında görünür: başka sekmeden Kaydet'e basılmışsa nerede
+      // doldurulacağı söylenir (Fable P5). Kumaş fiyatı yalnız Listeler'den değişir (30 Ekim).
+      const nerede = a.alanlar && fiyatVar ? ' Kaynak kutusu fiyatın yazıldığı ekranda, tablonun üstünde (kumaş fiyatı: Listeler); doldurup yeniden Kaydet\'e basın.' : '';
       return { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ: ' + (a.ad ? a.ad + ' — ' : '') + (a.alanlar ? 'zorunlu alanlar boş: ' + a.alanlar.join(', ') : (a.neden || e.kod)) + nerede };
     }
     ek.yeni = {};
@@ -5779,7 +5887,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       return !ara || (x.ad + ' ' + x.etiket + ' ' + (x.s ? x.s.kaynak : '')).toLocaleLowerCase('tr').indexOf(ara) !== -1;
     });
 
-    ekle(kap, el('p', { sinif: 'soluk', metin: 'Katalogdaki bütün fiyat, oran ve tutarlar. Değer geçmişi değişmez: her yeni değer yeni bir yürürlük satırıdır. Güncel değer ve bayatlık hesap tarihine (' + tarih + ') göredir. Ayrıntı için satırın adına tıklayın.' }));
+    ekle(kap, el('p', { sinif: 'soluk', metin: 'Katalogdaki bütün fiyat, oran ve tutarlar. Değer geçmişi değişmez: her yeni değer yeni bir yürürlük satırıdır. Güncel değer ve bayatlık hesap tarihine (' + tarih + ') göredir. Liste hücreleri (kumaş fiyatları dahil) Listeler\'den, genel ayarlar Genel ayarlar\'dan değişir; burada yalnız görünür. Ayrıntı için satırın adına tıklayın.' }));
 
     const arama = el('input', { type: 'search', value: ek.arama, placeholder: 'ara: ad, etiket, kaynak', 'data-odak': 'hizli-ara' });
     arama.addEventListener('input', function () { ek.arama = arama.value; ciz(); });
@@ -5793,7 +5901,9 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
 
     // tablo
     const govde = el('tbody');
+    const yerler = degerYeri(k);
     for (const x of satirlar) {
+      const yer = yerler[x.ad];
       const yeni = el('input', { type: 'text', inputMode: 'decimal', value: ek.yeni[x.ad] || '', placeholder: x.s ? x.s.deger : '', 'data-odak': 'hizli-yeni-' + x.ad, 'aria-label': x.ad + ' yeni değer' });
       const not = el('small', { sinif: 'uyari-metni', hidden: true });
       const denetle = function () {
@@ -5815,7 +5925,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         el('td', { sinif: 'sayi', metin: (x.gun === null ? '—' : String(x.gun)) + (x.bayat ? ' BAYAT' : '') }),
         el('td', { metin: x.s ? x.s.kaynak : '' }),
         el('td', { title: x.yerler.join('\n'), metin: x.yerler.length ? x.yerler.length + ' yer' : 'kullanılmıyor' }),
-        el('td', null, yeni, not)));
+        yer ? el('td', { sinif: 'soluk', 'data-deger-yeri': yer, metin: YER_METNI[yer] }) : el('td', null, yeni, not)));
     }
     ekle(kap, el('div', { sinif: 'tablo-kap' }, el('table', null,
       el('thead', null, el('tr', null, ['Parametre', 'Tür', 'Birim', 'Güncel', 'Son güncelleme', 'Kaç gün', 'Kaynak', 'Kullanım', 'Yeni değer'].map(function (b) { return el('th', { metin: b }); }))),
@@ -5962,7 +6072,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return Object.keys(ek.yeni).filter(function (ad) { return String(ek.yeni[ad]).trim() !== '' && k.parametreler[ad]; }).length;
   }
 
-  kok.KutuHizli = { kur, ciz, durum: ek, ortakKutusu, degerleriEkle, bekleyenSayisi };
+  kok.KutuHizli = { kur, ciz, durum: ek, ortakKutusu, degerleriEkle, bekleyenSayisi, degerYeri };
 })(this);
 
 // Ürün ve kategori şablonu düzenleme (S-3b): saf işlemler. DOM yok; her işlem girdiyi DEĞİŞTİRMEZ, yeni
@@ -7066,12 +7176,14 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
           el('small', { sinif: 'soluk', metin: adaylar.length ? 'hangi satır ' + x[1].toLocaleLowerCase('tr') + '?' : 'uygun parametre yok: aşağıdan "+ Yeni genel ayar" ile ekleyin' }));
       })));
     }
+    // Liste hücresi de olan genel ayar yalnız Listeler'den değişir (tek yer; hizli.js degerYeri).
+    const yerler = H().degerYeri(k);
     const satirlar = adlar.map(function (ad) {
       const p = k.parametreler[ad];
       const gorev = gorevi(ad);
       return el('tr', null,
         el('td', null, el('div', { metin: A.parametreEtiketi(k, ad) }), el('small', { sinif: 'soluk', metin: ad })),
-        p ? degerHucresi(ad) : el('td', { sinif: 'hata-metni', metin: 'parametre yok' }),
+        !p ? el('td', { sinif: 'hata-metni', metin: 'parametre yok' }) : yerler[ad] === 'liste' ? el('td', { sinif: 'soluk', 'data-deger-yeri': 'liste', metin: "Listeler'de değiştirilir" }) : degerHucresi(ad),
         el('td', { metin: p ? (p.para_birimi ? p.para_birimi + '/' : '') + p.birim : '' }),
         el('td', { 'data-gorev': ad, metin: gorev || (p && p.aciklama) || '' }),
         el('td', null, gorev ? null : el('button', { type: 'button', sinif: 'dugme kucuk-dugme', metin: 'Listeden çıkar', onclick: function () { uygula(function (x) { return P().genelParametreCikar(x, ad); }, 'genel ayardan çıkarıldı: ' + ad); } })));
@@ -7249,7 +7361,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   }
 
   // "Nasıl hesaplandı": satırın kendi alanlarından (miktar × parametre değeri, matrah × oran), kısa sayılarla.
-  // Kurla çevrilen satırda (TRY) tutar kaynak para biriminde yazılır, sonra "→ € (kur k)".
+  // Kurla çevrilen satırda (TL ya da başka döviz) tutar kaynak para biriminde yazılır, sonra "→ € (kur k)".
   // kumasTutari: kırılımdaki kumaş satırının tutarı (zincirin ilk satırı "kumaş" diye yazılır).
   function nasilHesaplandi(s, pb, kumasTutari) {
     const kurlu = s.kur_degeri !== null && s.kur_degeri !== undefined;
@@ -7832,6 +7944,9 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     durum.kaydedilmedi = false;
     durum.duzenlendi = false;
     durum.acilis = { durum: 'tamam' };
+    // Önceki başarısız Kaydet'in "HİÇBİRİ EKLENMEDİ" iletisi kalırsa kayıt olmamış sanılır (kullanıcı, 30 Ekim).
+    if (window.KutuParametreEkrani) window.KutuParametreEkrani.durum.ileti = null;
+    if (H) H.durum.ileti = null;
     acilisUyarisiCiz();
     katalogBilgisiCiz();
     modulleriCiz();
