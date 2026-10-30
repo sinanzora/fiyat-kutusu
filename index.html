@@ -79,6 +79,7 @@ textarea.gb-elle { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, m
 .sayi-kap { display: flex; flex-direction: column; gap: 2px; width: 100%; }
 .satir-ici .sayi-kap { flex: 1; min-width: 0; }
 input.gecersiz { border-color: var(--hata); background: var(--hata-zemin); }
+input.zorunlu-bos, select.zorunlu-bos { border: 2px solid var(--hata); background: var(--hata-zemin); box-shadow: 0 0 0 3px var(--hata-zemin); }
 input:disabled { opacity: 0.5; }
 .dugmeler { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .dugme {
@@ -5750,7 +5751,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
 (function (kok) {
   'use strict';
   let api = null;
-  const ek = { arama: '', yalnizBayat: false, tur: '', yeni: {}, ortak: null, ileti: null, secili: null, yeniParametre: { ad: '', tur: 'fiyat', birim: 'kg', para_birimi: 'EUR', label_tr: '' } };
+  const ek = { arama: '', yalnizBayat: false, tur: '', yeni: {}, eksik: [], ortak: null, ileti: null, secili: null, yeniParametre: { ad: '', tur: 'fiyat', birim: 'kg', para_birimi: 'EUR', label_tr: '' } };
   const KAYNAK_TURLERI = ['teklif', 'fatura', 'telefon', 'whatsapp', 'diger'];
   const PARA = ['EUR', 'TRY', 'USD'];
   // 'ucret' seçilemez (kullanıcı kararı, 29.10: ürün hesabında karşılığı yok); eski katalogdaki ücret parametresi
@@ -5778,6 +5779,27 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return yer;
   }
   const YER_METNI = { liste: "Listeler'de değiştirilir", genel: "Genel ayarlar'da değiştirilir" };
+  const ALAN_ADI = { kaynak: 'Kaynak', kaynak_turu: 'Kaynak türü', alinma_tarihi: 'Alınma tarihi', not: 'Not', giren: 'Giren' };
+
+  // Çizimden sonra ilk boş zorunlu alana kayar. Kaynak kutusu bu ekranda yoksa bekleyen fiyatın ekranı
+  // (Listeler'de kendi listesi ya da Tüm fiyatlar) açılır.
+  function eksigeGit() {
+    const bul = function () { return document.querySelector('#parametreler .zorunlu-bos'); };
+    if (!bul() && kok.KutuParametreEkrani) {
+      const k = api.durum.katalog;
+      const yer = degerYeri(k);
+      const ad = Object.keys(ek.yeni).find(function (x) { const p = k.parametreler[x]; return p && (p.tur === 'fiyat' || p.tur === 'ucret') && String(ek.yeni[x]).trim() !== ''; });
+      const pe = kok.KutuParametreEkrani.durum;
+      const liste = ad && yer[ad] === 'liste' ? Object.keys(k.listeler).find(function (l) { return k.listeler[l].satirlar.some(function (r) { return Object.keys(r.hucreler).some(function (s) { return r.hucreler[s] === ad; }); }); }) : null;
+      if (liste) { pe.alt = 'listeler'; pe.liste = liste; } else pe.alt = 'fiyatlar';
+      kok.KutuParametreEkrani.ciz();
+    }
+    const kutu = bul();
+    if (!kutu) return;
+    if (kutu.closest('details')) kutu.closest('details').open = true;
+    if (kutu.scrollIntoView) kutu.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    kutu.focus({ preventScroll: true });
+  }
 
   function gunFarki(tarih, bugun) {
     const a = Date.parse(tarih + 'T00:00:00Z');
@@ -5809,11 +5831,14 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   function ortakKutusu() {
     const { el, durum } = api;
     const o = ortakHazirla();
-    const kutu = function (a, oz) { return el('input', Object.assign({ type: 'text', value: o[a], 'data-odak': 'hizli-ortak-' + a, 'data-ortak': a, oninput: function (e) { o[a] = e.target.value; } }, oz || {})); };
-    const tarihKutusu = function (a) { return el('input', { type: 'date', value: o[a], 'data-odak': 'hizli-ortak-' + a, 'data-ortak': a, onchange: function (e) { o[a] = e.target.value; } }); };
-    const turSec = el('select', { 'data-ortak': 'kaynak_turu', onchange: function () { o.kaynak_turu = turSec.value; } }, [['', '—']].concat(KAYNAK_TURLERI.map(function (t) { return [t, t]; })).map(function (x) { return el('option', { value: x[0], metin: x[1] }); }));
+    // Kaydet zorunlu alan yüzünden reddedildiyse boş kalan alan kırmızı çerçevelidir; dolunca söner (30 Ekim).
+    const isaretle = function (a, kutu, deger) { kutu.classList.toggle('zorunlu-bos', ek.eksik.indexOf(a) !== -1 && String(deger || '').trim() === ''); return kutu; };
+    const kutu = function (a, oz) { return isaretle(a, el('input', Object.assign({ type: 'text', value: o[a], 'data-odak': 'hizli-ortak-' + a, 'data-ortak': a, oninput: function (e) { o[a] = e.target.value; isaretle(a, e.target, o[a]); } }, oz || {})), o[a]); };
+    const tarihKutusu = function (a) { return isaretle(a, el('input', { type: 'date', value: o[a], 'data-odak': 'hizli-ortak-' + a, 'data-ortak': a, onchange: function (e) { o[a] = e.target.value; isaretle(a, e.target, o[a]); } }), o[a]); };
+    const turSec = el('select', { 'data-ortak': 'kaynak_turu', onchange: function () { o.kaynak_turu = turSec.value; isaretle('kaynak_turu', turSec, o.kaynak_turu); } }, [['', '—']].concat(KAYNAK_TURLERI.map(function (t) { return [t, t]; })).map(function (x) { return el('option', { value: x[0], metin: x[1] }); }));
     turSec.value = o.kaynak_turu;
-    const giren = el('input', { type: 'text', value: durum.giren, placeholder: 'adınız', 'data-odak': 'hizli-giren', 'data-ortak': 'giren', oninput: function (e) { durum.giren = e.target.value; } });
+    isaretle('kaynak_turu', turSec, o.kaynak_turu);
+    const giren = isaretle('giren', el('input', { type: 'text', value: durum.giren, placeholder: 'adınız', 'data-odak': 'hizli-giren', 'data-ortak': 'giren', oninput: function (e) { durum.giren = e.target.value; isaretle('giren', e.target, durum.giren); } }), durum.giren);
     const alan = function (et, k2) { return el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: et }), k2); };
     return el('details', { sinif: 'kart-ic ortak-kutu', open: true }, el('summary', { metin: 'Yeni değerlerin kaynağı (fiyatta hepsi zorunlu)' }),
       el('div', { sinif: 'satir-ici sarmal' },
@@ -5848,12 +5873,15 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } catch (e) {
       if (!e || !e.kod) throw e;
       const a = e.ayrinti || {};
-      // Kaynak kutusu yalnız fiyat ekranlarında görünür: başka sekmeden Kaydet'e basılmışsa nerede
-      // doldurulacağı söylenir (Fable P5). Kumaş fiyatı yalnız Listeler'den değişir (30 Ekim).
-      const nerede = a.alanlar && fiyatVar ? ' Kaynak kutusu fiyatın yazıldığı ekranda, tablonun üstünde (kumaş fiyatı: Listeler); doldurup yeniden Kaydet\'e basın.' : '';
-      return { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ: ' + (a.ad ? a.ad + ' — ' : '') + (a.alanlar ? 'zorunlu alanlar boş: ' + a.alanlar.join(', ') : (a.neden || e.kod)) + nerede };
+      // Zorunlu alan boşsa: uyarı + boş alanlar çerçeveli + sayfa oraya kayar (eksigeGit; kullanıcı, 30 Ekim).
+      if (a.alanlar) {
+        ek.eksik = a.alanlar.slice();
+        return { tur: 'hata', eksik: true, metin: 'Zorunlu alanları doldurmalısınız: ' + a.alanlar.map(function (x) { return ALAN_ADI[x] || x; }).join(', ') + (a.ad ? ' (' + A.parametreEtiketi(k, a.ad) + ' fiyatı için)' : '') + '. Boş alanlar kırmızı çerçeveli; doldurup yeniden Kaydet\'e basın.' };
+      }
+      return { tur: 'hata', metin: 'HİÇBİRİ EKLENMEDİ: ' + (a.ad ? a.ad + ' — ' : '') + (a.neden || e.kod) };
     }
     ek.yeni = {};
+    ek.eksik = [];
     const ileti = { tur: 'tamam', metin: r.eklenen + ' parametreye yeni değer eklendi. Kalıcı olması için "Kaydet"; yedek indirmeyi de unutmayın.' };
     api.katalogDegisti(r.katalog, 'yeni değer: ' + r.eklenen);
     return ileti;
@@ -5938,7 +5966,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     };
     sayacCiz();
     ekle(kap, el('div', { sinif: 'satir-ici sarmal' },
-      el('button', { type: 'button', sinif: 'dugme', metin: 'Değerleri ekle', onclick: function () { ek.ileti = degerleriEkle(); ciz(); } }),
+      el('button', { type: 'button', sinif: 'dugme', metin: 'Değerleri ekle', onclick: function () { ek.ileti = degerleriEkle(); ciz(); if (ek.ileti.eksik) eksigeGit(); } }),
       el('button', { type: 'button', sinif: 'dugme ikincil', metin: 'Yazılanları temizle', onclick: function () { ek.yeni = {}; ek.ileti = null; ciz(); } }),
       sayac));
     if (ek.ileti) ekle(kap, el('div', { sinif: 'ileti ' + ek.ileti.tur, role: 'status', metin: ek.ileti.metin }));
@@ -6072,7 +6100,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return Object.keys(ek.yeni).filter(function (ad) { return String(ek.yeni[ad]).trim() !== '' && k.parametreler[ad]; }).length;
   }
 
-  kok.KutuHizli = { kur, ciz, durum: ek, ortakKutusu, degerleriEkle, bekleyenSayisi, degerYeri };
+  kok.KutuHizli = { kur, ciz, durum: ek, ortakKutusu, degerleriEkle, bekleyenSayisi, degerYeri, eksigeGit };
 })(this);
 
 // Ürün ve kategori şablonu düzenleme (S-3b): saf işlemler. DOM yok; her işlem girdiyi DEĞİŞTİRMEZ, yeni
@@ -7044,7 +7072,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     sayac = el('span', { sinif: 'soluk', 'data-param': 'sayac' });
     sayacYaz();
     ekle(kap, el('div', { sinif: 'satir-ici sarmal' },
-      el('button', { type: 'button', sinif: 'dugme', 'data-param': 'degerleri-ekle', metin: 'Değerleri ekle', onclick: function () { const m = H().degerleriEkle(); if (m) { ek.ileti = m; ciz(); } } }),
+      el('button', { type: 'button', sinif: 'dugme', 'data-param': 'degerleri-ekle', metin: 'Değerleri ekle', onclick: function () { const m = H().degerleriEkle(); if (m) { ek.ileti = m; ciz(); if (m.eksik) H().eksigeGit(); } } }),
       sayac));
   }
 
@@ -7924,6 +7952,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       if (m.tur !== 'tamam') {
         ileti('KAYDEDİLMEDİ: ' + m.metin, 'hata');
         if (window.KutuParametreEkrani) { window.KutuParametreEkrani.durum.ileti = m; window.KutuParametreEkrani.ciz(); }
+        if (m.eksik) H.eksigeGit();
         return;
       }
     }
