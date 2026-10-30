@@ -5743,7 +5743,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
 
 // Tüm fiyatlar (K4a hızlı güncelleme; S-3a'da Parametreler sekmesinin parçası): parametre listesi; her
 // satırda güncel değer, son güncelleme (alınma) tarihi, kaynak, kaç gün önce, kullanıldığı yerler ve yeni
-// değer kutusu. Kaynak/tür/alınma tarihi/not/giren ORTAK alanlarda bir kez yazılır; "Değerleri ekle"
+// değer kutusu. Kaynak/alınma tarihi/giren ORTAK alanlarda bir kez yazılır (tür, yürürlük, not kendiliğinden); "Değerleri ekle"
 // hepsini tek adımda ekler (ya hep ya hiç, geri alınabilir). Listeler ve Genel ayarlar aynı bekleyen
 // değerleri ve ortak alanları kullanır (ortakKutusu, degerleriEkle). Yayınlanmış katalogda da çalışır.
 // Satıra tıklayınca tanım paneli: tür/birim/etiket/açıklama, sil (kullanılan ya da geçmişi olan silinmez),
@@ -5752,7 +5752,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   'use strict';
   let api = null;
   const ek = { arama: '', yalnizBayat: false, tur: '', yeni: {}, eksik: [], ortak: null, ileti: null, secili: null, yeniParametre: { ad: '', tur: 'fiyat', birim: 'kg', para_birimi: 'EUR', label_tr: '' } };
-  const KAYNAK_TURLERI = ['teklif', 'fatura', 'telefon', 'whatsapp', 'diger'];
   const PARA = ['EUR', 'TRY', 'USD'];
   // 'ucret' seçilemez (kullanıcı kararı, 29.10: ürün hesabında karşılığı yok); eski katalogdaki ücret parametresi
   // panelde kendi türüyle görünür ve çalışmaya devam eder.
@@ -5807,7 +5806,9 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return isNaN(a) || isNaN(b) ? null : Math.round((b - a) / 86400000);
   }
   function ortakHazirla() {
-    if (!ek.ortak) ek.ortak = { yururluk: api.bugun(), kaynak: '', kaynak_turu: 'teklif', alinma_tarihi: api.bugun(), not: '' };
+    // Kaynak türü, yürürlük ve not ekranda sorulmaz (kullanıcı kararı, 30 Ekim): çekirdeğin zorunlu
+    // alanları burada dolar — tür "diger", yürürlük bugün, not sabit metin.
+    if (!ek.ortak) ek.ortak = { yururluk: api.bugun(), kaynak: '', kaynak_turu: 'diger', alinma_tarihi: api.bugun(), not: 'Ekrandan girildi' };
     return ek.ortak;
   }
   function hataMetni(e) {
@@ -5835,16 +5836,12 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const isaretle = function (a, kutu, deger) { kutu.classList.toggle('zorunlu-bos', ek.eksik.indexOf(a) !== -1 && String(deger || '').trim() === ''); return kutu; };
     const kutu = function (a, oz) { return isaretle(a, el('input', Object.assign({ type: 'text', value: o[a], 'data-odak': 'hizli-ortak-' + a, 'data-ortak': a, oninput: function (e) { o[a] = e.target.value; isaretle(a, e.target, o[a]); } }, oz || {})), o[a]); };
     const tarihKutusu = function (a) { return isaretle(a, el('input', { type: 'date', value: o[a], 'data-odak': 'hizli-ortak-' + a, 'data-ortak': a, onchange: function (e) { o[a] = e.target.value; isaretle(a, e.target, o[a]); } }), o[a]); };
-    const turSec = el('select', { 'data-ortak': 'kaynak_turu', onchange: function () { o.kaynak_turu = turSec.value; isaretle('kaynak_turu', turSec, o.kaynak_turu); } }, [['', '—']].concat(KAYNAK_TURLERI.map(function (t) { return [t, t]; })).map(function (x) { return el('option', { value: x[0], metin: x[1] }); }));
-    turSec.value = o.kaynak_turu;
-    isaretle('kaynak_turu', turSec, o.kaynak_turu);
     const giren = isaretle('giren', el('input', { type: 'text', value: durum.giren, placeholder: 'adınız', 'data-odak': 'hizli-giren', 'data-ortak': 'giren', oninput: function (e) { durum.giren = e.target.value; isaretle('giren', e.target, durum.giren); } }), durum.giren);
     const alan = function (et, k2) { return el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: et }), k2); };
     return el('details', { sinif: 'kart-ic ortak-kutu', open: true }, el('summary', { metin: 'Yeni değerlerin kaynağı (fiyatta hepsi zorunlu)' }),
       el('div', { sinif: 'satir-ici sarmal' },
-        alan('Kaynak *', kutu('kaynak', { placeholder: 'kimden' })), alan('Kaynak türü *', turSec),
-        alan('Alınma tarihi *', tarihKutusu('alinma_tarihi')), alan('Yürürlük', tarihKutusu('yururluk')),
-        alan('Not *', kutu('not')), alan('Giren *', giren)));
+        alan('Kaynak *', kutu('kaynak', { placeholder: 'kimden' })),
+        alan('Alınma tarihi *', tarihKutusu('alinma_tarihi')), alan('Giren *', giren)));
   }
 
   // Bekleyen yeni değerleri ekler (ya hep ya hiç). Dönen ileti çağıranın ekranında gösterilir.
