@@ -74,6 +74,10 @@ input[type="text"], input[type="date"], select, textarea {
   font: inherit; color: inherit; background: var(--kart);
   border: 1px solid var(--cizgi); border-radius: 6px; padding: 7px 9px; min-height: 38px; width: 100%; max-width: 100%;
 }
+/* iPhone Safari tarih kutusuna kendi en küçük genişliğini verir, kutu kartın sağından taşar ve yazı
+   ortalanır (kullanıcı, 31 Ekim). Yerel görünüm kapatılır; kutu kabına sığar, yazı sola dayanır. */
+input[type="date"] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 textarea { resize: vertical; min-height: 0; }
 textarea.gb-elle { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; margin-top: 6px; }
 .sayi-kap { display: flex; flex-direction: column; gap: 2px; width: 100%; }
@@ -7696,7 +7700,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const bugunMu = durum.hesap_tarihi === api.bugun();
     ekle(kap, el('details', { sinif: 'gelismis', open: !bugunMu },
       el('summary', { metin: 'Gelişmiş' + (bugunMu ? '' : ' — hesap tarihi ' + api.A.tarihMetni(durum.hesap_tarihi)) }),
-      el('div', { sinif: 'izgara' }, alan('Hesap tarihi', tarih, 'fiyatların yürürlüğü ve bayatlık bu tarihe göre; varsayılan bugün'))));
+      el('div', { sinif: 'izgara' }, alan('Hesap tarihi', tarih, 'hangi günün fiyatlarıyla hesaplanacağı; normalde bugün'))));
     if (ek.urun !== null) {
       // Listeden seçenek alan alanlar açılmış hâliyle (çekirdeğin hesapta kullandığı açılım).
       let u;
@@ -7754,10 +7758,21 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         el('p', { metin: A.kodMetni(Object.assign({ kod: s.hata.kod }, s.hata.ayrinti)) }));
       return;
     }
-    // Yalnız ekranda doldurulacak alanlar eksikse bu bir sorun değil, sıradaki adımdır: yumuşak liste.
+    // Yalnız ekranda doldurulacak alanlar eksikse bu bir sorun değil, sıradaki adımdır. Hiçbir şey yazılmamışsa
+    // boş alanlar yeniden sayılmaz (hemen üstte duruyorlar; kullanıcı, 31 Ekim); yazılmaya başlandıysa kalanlar
+    // tek satırda, aralık dışı gibi hatalı girişler ayrı satırda yazılır.
     if (s.durum === 'fiyat_yok' && s.eksikler.every(function (e) { return e.tur === 'alan' || e.tur === 'kar_yuzde' || e.tur === 'adet'; })) {
-      ekle(kutu, el('p', { sinif: 'vurgu', metin: 'Fiyat için tamamlayın:' }),
-        el('ul', { sinif: 'liste soluk' }, s.eksikler.map(function (e) { return el('li', { metin: UA.eksikMetni(e, u, k) }); })));
+      const ham = hamAl(ek.urun);
+      const dolu = function (v) { return String(v === undefined || v === null ? '' : v).trim() !== ''; };
+      if (!Object.keys(ham.alanlar).some(function (a) { return dolu(ham.alanlar[a]); }) && !dolu(ham.kar_yuzde) && !dolu(ham.adet)) {
+        ekle(kutu, el('p', { sinif: 'soluk', metin: 'Yukarıdaki alanları doldurun; fiyat ve maliyet kırılımı burada çıkar.' }));
+        return;
+      }
+      const adi = function (e) { return e.tur === 'kar_yuzde' ? 'Kâr %' : e.tur === 'adet' ? 'Sipariş adedi' : etiket(u.alanlar.find(function (a) { return a.ad === e.ad; }), e.ad); };
+      const bos = s.eksikler.filter(function (e) { return !e.neden; });
+      const hatali = s.eksikler.filter(function (e) { return e.neden; });
+      ekle(kutu, bos.length ? el('p', { sinif: 'vurgu', 'data-urun-sonuc': 'kalan', metin: 'Fiyat için kalan: ' + bos.map(adi).join(', ') + '.' }) : null,
+        hatali.length ? el('ul', { sinif: 'liste uyari-metni' }, hatali.map(function (e) { return el('li', { metin: UA.eksikMetni(e, u, k) }); })) : null);
       return;
     }
     // Hücre/parametre değeri yoksa nereden girileceği yazılır (Listeler, Genel ayarlar ya da Tüm fiyatlar).
