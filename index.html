@@ -262,7 +262,6 @@ details.gelismis { margin: 4px 0 8px; }
 <body>
 <header class="ust">
   <h1>Fiyat Deneme Kutusu</h1>
-  <span id="cekirdek-damga" class="soluk"></span>
 </header>
 <main>
   <!-- Katalog kartı katlanır (Fable S-2 UX notu): kapalıyken özet satırı ad, kaynak ve doğrulayıcı
@@ -307,7 +306,7 @@ details.gelismis { margin: 4px 0 8px; }
     </details>
   </section>
 </main>
-<footer class="soluk">Tüm hakları saklıdır. Ağ isteği yapmaz; veriler yalnız bu tarayıcıda ve indirdiğiniz dosyalarda kalır.</footer>
+<footer class="soluk">Tüm hakları saklıdır. Ağ isteği yapmaz; veriler yalnız bu tarayıcıda ve indirdiğiniz dosyalarda kalır. <span id="cekirdek-damga"></span></footer>
 <script>
 // ÜRETİLMİŞ: çekirdek/*.cjs birebir (araclar/derle.cjs).
 window.FiyatCekirdek = (function () {
@@ -4423,6 +4422,22 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const kalan = kesir.slice(2).replace(/0+$/, '');
     return m[1] + (m[2] + kesir.slice(0, 2)).replace(/^0+(?=\d)/, '') + (kalan ? '.' + kalan : '');
   }
+  // Parametrenin ekranda birimi: oran "yüzde (%)", kur "TL / €" ("1 € kaç TL"), yuvarlama gibi para
+  // birimiyle aynı birim tek kez ("EUR/EUR" değil "EUR"), diğerleri "TRY/adet".
+  const PARA_KISA = { EUR: '€', USD: '$', TRY: 'TL' };
+  function birimMetni(p) {
+    if (!p) return '';
+    if (p.tur === 'oran') return 'yüzde (%)';
+    const kur = /^([A-Z]{3})\/([A-Z]{3})$/.exec(p.birim || '');
+    if (!p.para_birimi && kur) return (PARA_KISA[kur[1]] || kur[1]) + ' / ' + (PARA_KISA[kur[2]] || kur[2]);
+    if (p.para_birimi && p.birim === p.para_birimi) return p.para_birimi;
+    return (p.para_birimi ? p.para_birimi + '/' : '') + (p.birim || '');
+  }
+  // ISO tarih ("2026-10-01") ekranda gün.ay.yıl; tarih değilse olduğu gibi.
+  function tarihMetni(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    return m ? m[3] + '.' + m[2] + '.' + m[1] : String(iso || '');
+  }
   // Sipariş girdisi ve parametrenin ekran adı: label_tr, yoksa label_en, yoksa katalog adı.
   function adEtiketi(nesne, ad) {
     return (nesne && (nesne.label_tr || nesne.label_en)) || ad;
@@ -4746,7 +4761,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return { metin: satirlar.join('\n') + '\n' };
   }
 
-  return { geriBildirimPaketi, etiket, sayiMetni, binlikSuphesi, belirsizIletisi, sayiDenetle, yuzdedenOran, orandanYuzde, gecersizler, ekranEksikleriyle, ezmeAdlari, ekranSonucu,adEtiketi, parametreEtiketi, adimlar, yolSatirlari, adliKurlar, kurAnlami, istekKur, eksikMetni, kodMetni, denetimAyir, PARA_BIRIMLERI };
+  return { geriBildirimPaketi, etiket, sayiMetni, binlikSuphesi, belirsizIletisi, sayiDenetle, yuzdedenOran, orandanYuzde, birimMetni, tarihMetni, gecersizler, ekranEksikleriyle, ezmeAdlari, ekranSonucu,adEtiketi, parametreEtiketi, adimlar, yolSatirlari, adliKurlar, kurAnlami, istekKur, eksikMetni, kodMetni, denetimAyir, PARA_BIRIMLERI };
 });
 
 // Depolama arayüzü (şartname §8): ekran katalogu bu arayüzle açar/kaydeder. Kutuda tarayıcı
@@ -5787,7 +5802,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   const PARA = ['EUR', 'TRY', 'USD'];
   // 'ucret' seçilemez (kullanıcı kararı, 29.10: ürün hesabında karşılığı yok); eski katalogdaki ücret parametresi
   // panelde kendi türüyle görünür ve çalışmaya devam eder.
-  const TURLER = [['fiyat', 'fiyat'], ['oran', 'oran'], ['sabit', 'tutar / sabit']];
+  const TURLER = [['fiyat', 'fiyat'], ['oran', 'oran'], ['sabit', 'tutar']];
+  const TUR_ADI = { fiyat: 'fiyat', oran: 'oran', sabit: 'tutar', ucret: 'ücret (eski)' };
   const HATA_METNI = {
     TASLAK_DEGIL: 'Katalog yayınlanmış (salt okunur): tanımı değiştirmek için önce "Taslak aç". Değer eklemek serbest.',
     AD_GECERSIZ: 'Ad küçük harfle başlamalı; yalnız küçük harf (Türkçe harf yok), rakam ve _ içermeli.',
@@ -5810,6 +5826,11 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return yer;
   }
   const YER_METNI = { liste: "Listeler'de değiştirilir", genel: "Genel ayarlar'da değiştirilir" };
+  // Değerin değiştirildiği alt sekmenin adı (Seçim ve Ürünler iletileri doğru yeri göstersin).
+  function degisecegiYer(ad) {
+    const y = api && api.durum.katalog ? degerYeri(api.durum.katalog)[ad] : null;
+    return y === 'liste' ? 'Listeler' : y === 'genel' ? 'Genel ayarlar' : 'Tüm fiyatlar';
+  }
   const ALAN_ADI = { kaynak: 'Kaynak', alinma_tarihi: 'Alınma tarihi', giren: 'Giren' };
 
   // Çizimden sonra ilk boş zorunlu alana kayar. Kaynak kutusu bu ekranda yoksa bekleyen fiyatın ekranı
@@ -5946,7 +5967,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       return !ara || (x.ad + ' ' + x.etiket + ' ' + (x.s ? x.s.kaynak : '')).toLocaleLowerCase('tr').indexOf(ara) !== -1;
     });
 
-    ekle(kap, el('p', { sinif: 'soluk', metin: 'Katalogdaki bütün fiyat, oran ve tutarlar. Değer geçmişi değişmez: her yeni değer yeni bir yürürlük satırıdır. Güncel değer ve bayatlık hesap tarihine (' + tarih + ') göredir. Liste hücreleri (kumaş fiyatları dahil) Listeler\'den, genel ayarlar Genel ayarlar\'dan değişir; burada yalnız görünür. Ayrıntı için satırın adına tıklayın.' }));
+    ekle(kap, el('p', { sinif: 'soluk', metin: 'Katalogdaki bütün fiyat, oran ve tutarlar. Değer geçmişi değişmez: her yeni değer yeni bir yürürlük satırıdır. Güncel değer ve bayatlık hesap tarihine (' + A.tarihMetni(tarih) + ') göredir. Liste hücreleri (kumaş fiyatları dahil) Listeler\'den, genel ayarlar Genel ayarlar\'dan değişir; burada yalnız görünür. Ayrıntı için satırın adına tıklayın.' }));
 
     const arama = el('input', { type: 'search', value: ek.arama, placeholder: 'ara: ad, etiket, kaynak', 'data-odak': 'hizli-ara' });
     arama.addEventListener('input', function () { ek.arama = arama.value; ciz(); });
@@ -5956,11 +5977,12 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     ekle(kap, el('div', { sinif: 'satir-ici sarmal' }, arama, tur,
       el('label', { sinif: 'onay' }, el('input', { type: 'checkbox', checked: ek.yalnizBayat, onchange: function (e) { ek.yalnizBayat = e.target.checked; ciz(); } }), ' yalnız bayat')));
 
-    ekle(kap, ortakKutusu());
+    // Kaynak kutusu yalnız burada yazılabilen bir fiyat varsa (kumaş fiyatları Listeler'de yazılır).
+    const yerler = degerYeri(k);
+    if (Object.keys(k.parametreler).some(function (a) { const t = k.parametreler[a].tur; return !yerler[a] && (t === 'fiyat' || t === 'ucret'); })) ekle(kap, ortakKutusu());
 
     // tablo
     const govde = el('tbody');
-    const yerler = degerYeri(k);
     for (const x of satirlar) {
       const yer = yerler[x.ad];
       // Oran yüzde gösterilir ve yazılır (Ürünler, Seçim, Listeler ile aynı).
@@ -5980,10 +6002,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         el('td', null, el('button', { type: 'button', sinif: 'baglanti', 'data-parametre': x.ad, metin: x.etiket !== x.ad ? x.etiket : x.ad, onclick: function () { ek.secili = ek.secili === x.ad ? null : x.ad; ek.ileti = null; ciz(); } }),
           x.etiket !== x.ad ? el('small', { sinif: 'soluk', metin: ' ' + x.ad }) : null,
           el('div', { sinif: 'rol', 'data-rol': x.ad, metin: roller[x.ad] })),
-        el('td', { metin: x.p.tur }),
-        el('td', { metin: oran ? 'yüzde (%)' : (x.p.para_birimi ? x.p.para_birimi + '/' : '') + x.p.birim }),
+        el('td', { metin: TUR_ADI[x.p.tur] || x.p.tur }),
+        el('td', { metin: A.birimMetni(x.p) }),
         el('td', { sinif: 'sayi', metin: guncel === null ? '— yok —' : guncel }),
-        el('td', { metin: x.s ? (x.s.alinma_tarihi || x.s.yururluk) : '' }),
+        el('td', { metin: x.s ? A.tarihMetni(x.s.alinma_tarihi || x.s.yururluk) : '' }),
         el('td', { sinif: 'sayi', metin: (x.gun === null ? '—' : String(x.gun)) + (x.bayat ? ' BAYAT' : '') }),
         el('td', { metin: x.s ? x.s.kaynak : '' }),
         el('td', { title: x.yerler.join('\n'), metin: x.yerler.length ? x.yerler.length + ' yer' : 'kullanılmıyor' }),
@@ -6051,7 +6073,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       el('div', { sinif: 'tablo-kap' }, el('table', null,
         el('thead', null, el('tr', null, ['Değer', 'Yürürlük', 'Kaynak', 'Alınma', 'Giren', 'Giriş zamanı'].map(function (b) { return el('th', { metin: b }); }))),
         el('tbody', null, p.degerler.slice().reverse().map(function (s) {
-          return el('tr', null, [p.tur === 'oran' ? '%' + A.orandanYuzde(s.deger).replace('.', ',') : s.deger, s.yururluk, s.kaynak, s.alinma_tarihi, s.giren, s.giris_zamani].map(function (v, i) { return el('td', { sinif: i === 0 ? 'sayi' : null, metin: v || '' }); }));
+          return el('tr', null, [p.tur === 'oran' ? '%' + A.orandanYuzde(s.deger).replace('.', ',') : s.deger.replace('.', ','), A.tarihMetni(s.yururluk), s.kaynak, A.tarihMetni(s.alinma_tarihi), s.giren, s.giris_zamani ? kok.KutuDepo.yerelZaman(s.giris_zamani) : ''].map(function (v, i) { return el('td', { sinif: i === 0 ? 'sayi' : null, metin: v || '' }); }));
         })))));
     return kap;
   }
@@ -6089,11 +6111,14 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     let ekleFn;
     if (f.asama === '') {
       kutular.push(
-        alan('Kısa ad (değişmez)', kutu('ad', { placeholder: 'kutu_fiyati' })),
+        alan('Kısa ad (boşsa görünen addan)', kutu('ad', { placeholder: 'otomatik' })),
         alan('Tür', secimKutusu(TURLER, f.tur, function (v) { f.tur = v; })),
         alan('Birim', kutu('birim', { placeholder: 'kg / metre / adet / oran' })),
         alan('Para birimi', secimKutusu([['', '— yok —']].concat(PARA.map(function (p) { return [p, p]; })), f.para_birimi, function (v) { f.para_birimi = v; })));
       ekleFn = function () {
+        const ad = f.ad || (f.label_tr ? U.adUret(f.label_tr, function (a) { return !!k.parametreler[a]; }) : '');
+        if (!ad) { ek.ileti = { tur: 'hata', metin: 'Görünen adı yazın.' }; ek.formAcik = true; ciz(); return; }
+        f.ad = ad;
         const r = uygula(function (x) { return Z.parametreEkle(x, f.ad, { tur: f.tur, birim: f.birim, para_birimi: f.para_birimi || null, label_tr: f.label_tr }); }, 'parametre eklendi: ' + (f.label_tr || f.ad));
         if (r) { ek.secili = f.ad; sifirla(); ciz(); }
       };
@@ -6134,7 +6159,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return Object.keys(ek.yeni).filter(function (ad) { return String(ek.yeni[ad]).trim() !== '' && k.parametreler[ad]; }).length;
   }
 
-  kok.KutuHizli = { kur, ciz, durum: ek, ortakKutusu, degerleriEkle, bekleyenSayisi, degerYeri, eksigeGit };
+  kok.KutuHizli = { kur, ciz, durum: ek, ortakKutusu, degerleriEkle, bekleyenSayisi, degerYeri, degisecegiYer, eksigeGit };
 })(this);
 
 // Ürün ve kategori şablonu düzenleme (S-3b): saf işlemler. DOM yok; her işlem girdiyi DEĞİŞTİRMEZ, yeni
@@ -6534,13 +6559,29 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return api.el('button', Object.assign({ type: 'button', sinif: 'dugme kucuk-dugme', metin: metinStr, onclick: tikla }, oz || {}));
   }
   function etiket(x, ad) { return (x && (x.label_tr || x.label_en)) || ad; }
-  function parametreSecenekleri(bos) {
+  // Kalemin hesabına uyan parametreler (çekirdeğin beklediği tür/birim): adet başına → adet tutarı, kg başına
+  // → kg tutarı, yüzde → oran. Uymayan seçili değer kaybolmasın diye "(uymuyor)" notuyla kalır.
+  const UYGUN = {
+    adet_basina: function (p) { return p.tur === 'sabit' && p.birim === 'adet' && !!p.para_birimi; },
+    kg_basina: function (p) { return p.tur === 'sabit' && p.birim === 'kg' && !!p.para_birimi; },
+    yuzde: function (p) { return p.tur === 'oran'; },
+  };
+  function parametreSecenekleri(tip, secili) {
     const k = api.durum.katalog;
-    return [['', bos || '— seçin —']].concat(Object.keys(k.parametreler).sort().map(function (ad) {
+    const uygun = UYGUN[tip] || function () { return true; };
+    const adlar = Object.keys(k.parametreler).filter(function (ad) { return uygun(k.parametreler[ad]) || ad === secili; });
+    return [['', adlar.length ? '— seçin —' : '— uygun parametre yok —']].concat(adlar.map(function (ad) {
       const p = k.parametreler[ad];
-      return [ad, api.A.parametreEtiketi(k, ad) + ' · ' + p.tur + ' ' + (p.para_birimi ? p.para_birimi + '/' : '') + p.birim];
-    }));
+      return [ad, api.A.parametreEtiketi(k, ad) + ' (' + api.A.birimMetni(p) + ')' + (uygun(p) ? '' : ' — uymuyor')];
+    }).sort(function (a, b) { return a[1].localeCompare(b[1], 'tr'); }));
   }
+  // Kısa ad yazılmazsa görünen addan üretilir (Listeler gibi); ikisi de boşsa ileti.
+  function kisaAd(f, varMi) {
+    if (f.ad) return f.ad;
+    if (!f.label_tr) { kok.KutuParametreEkrani.durum.ileti = { tur: 'hata', metin: 'Görünen adı yazın.' }; yeniden(); return ''; }
+    return Z().adUret(f.label_tr, varMi);
+  }
+  const KISA_AD = 'Kısa ad (boşsa görünen addan)';
   // Satır düğmeleri: yukarı, aşağı, sil.
   function siraDugmeleri(yer, yol, i, n, ad, sil) {
     return [
@@ -6660,10 +6701,13 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     kap.appendChild(el('details', { sinif: 'yeni-form' }, el('summary', { metin: '+ Alan ekle' }),
       el('div', { sinif: 'satir-ici sarmal' },
         alan('Görünen ad', el('input', { type: 'text', placeholder: 'Ebat', oninput: function (e) { f.label_tr = e.target.value.trim(); } })),
-        alan('Kısa ad (değişmez)', el('input', { type: 'text', placeholder: 'ebat_cm', oninput: function (e) { f.ad = e.target.value.trim(); } })),
+        alan(KISA_AD, el('input', { type: 'text', placeholder: 'otomatik', oninput: function (e) { f.ad = e.target.value.trim(); } }), 'formüller bu adı okur'),
         alan('Tür', secim(TURLER, f.tur, function (v) { f.tur = v; })),
         el('button', { type: 'button', sinif: 'dugme', metin: 'Alanı ekle', onclick: function () {
-          const oge = Object.assign({ ad: f.ad, tur: f.tur, label_tr: f.label_tr || f.ad }, f.tur === 'sayi' ? { birim: '', min: '0', max: '1000' } : { secenekler: [] });
+          const kat = yer.tur === 'urun' && g.kategori && k.kategoriler ? k.kategoriler[g.kategori] : null;
+          const ad = kisaAd(f, function (a) { return ((kat && kat.alanlar) || []).concat(alanlar).some(function (x) { return x.ad === a; }); });
+          if (!ad) return;
+          const oge = Object.assign({ ad: ad, tur: f.tur, label_tr: f.label_tr || f.ad }, f.tur === 'sayi' ? { birim: '', min: '0', max: '1000' } : { secenekler: [] });
           uygula(function (x) { return Z().diziEkle(x, yer, ['alanlar'], oge); }, 'alan eklendi: ' + (f.label_tr || f.ad));
         } }))));
     return kap;
@@ -6737,9 +6781,11 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const f = { label_tr: '', ad: '' };
     kap.appendChild(el('div', { sinif: 'satir-ici sarmal yeni-form' },
       alan('Yeni seçenek', el('input', { type: 'text', placeholder: 'görünen ad (Pahalı)', oninput: function (e) { f.label_tr = e.target.value.trim(); } })),
-      alan('Kısa ad', el('input', { type: 'text', placeholder: 'pahali', oninput: function (e) { f.ad = e.target.value.trim(); } })),
+      alan(KISA_AD, el('input', { type: 'text', placeholder: 'otomatik', oninput: function (e) { f.ad = e.target.value.trim(); } })),
       el('button', { type: 'button', sinif: 'dugme', metin: 'Seçenek ekle', onclick: function () {
-        uygula(function (x) { return Z().diziEkle(x, yer, yol.concat(['secenekler']), { ad: f.ad, label_tr: f.label_tr || f.ad }); }, 'seçenek eklendi: ' + (f.label_tr || f.ad));
+        const ad = kisaAd(f, function (x) { return ss.some(function (s) { return s.ad === x; }); });
+        if (!ad) return;
+        uygula(function (x) { return Z().diziEkle(x, yer, yol.concat(['secenekler']), { ad: ad, label_tr: f.label_tr || ad }); }, 'seçenek eklendi: ' + (f.label_tr || f.ad));
       } })));
     return kap;
   }
@@ -6815,8 +6861,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       if (!yuzde) kutular.push(alan('Para birimi', secim(PARA.map(function (p) { return [p, p]; }), f.para_birimi || g.para_birimi || 'EUR', function (v) { f.para_birimi = v; })));
       kutular.push(alan('Giren', el('input', { type: 'text', value: durum.giren, placeholder: 'adınız', oninput: function (e) { durum.giren = e.target.value; }, 'data-yeni-kalem': 'giren' })));
     } else if (f.hesap === 'parametre') {
-      kutular.push(alan('Parametre', secim(parametreSecenekleri(), f.parametre, function (v) { f.parametre = v; })));
-      kutular.push(alan('Hesap', secim(TIPLER.filter(function (t) { return t[0] !== 'formul'; }), f.tip, function (v) { f.tip = v; })));
+      kutular.push(alan('Hesap', secim(TIPLER.filter(function (t) { return t[0] !== 'formul'; }), f.tip, function (v) { f.tip = v; f.parametre = ''; f.acik = true; yeniden(); })));
+      kutular.push(alan('Parametre', secim(parametreSecenekleri(f.tip, f.parametre), f.parametre, function (v) { f.parametre = v; })));
     } else {
       kutular.push(alan('Formül', kutu('ifade', { sinif: 'ifade', placeholder: 'dokuma_etiket * aksesuar_firesi', 'data-yeni-kalem': 'ifade' })));
     }
@@ -6862,7 +6908,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       kutular.push(alan('Formül', metin(x.ifade, o + 'ifade', function (v) { gun({ ifade: v }, 'formül'); }, { sinif: 'ifade' }), 'sayı alanları, ara değerler, parametreler'));
       kutular.push(el('label', { sinif: 'onay' }, el('input', { type: 'checkbox', checked: x.ara_toplama_girer !== false, onchange: function (e) { gun({ ara_toplama_girer: e.target.checked ? '' : false }, 'ara toplama girer'); } }), ' ara toplama girer'));
     } else if (!kalip) {
-      kutular.push(alan(x.tip === 'yuzde' ? 'Oran (parametre)' : 'Tutar (parametre)', secim(parametreSecenekleri(), x.deger, function (v) { gun({ deger: v }, 'kalem değeri'); }, { 'data-kalem-deger': yol.join('.') }), guncelDeger(x)));
+      kutular.push(alan(x.tip === 'yuzde' ? 'Oran (parametre)' : 'Tutar (parametre)', secim(parametreSecenekleri(x.tip, x.deger), x.deger, function (v) { gun({ deger: v }, 'kalem değeri'); }, { 'data-kalem-deger': yol.join('.') }), guncelDeger(x)));
     } else {
       kutular.push(el('span', { sinif: 'soluk', metin: 'tutar seçilen liste satırının fiyat sütunundan' }));
     }
@@ -6877,19 +6923,21 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return el('div', { sinif: 'satir-ici sarmal satir-kart', 'data-kalem': yol.join('.') }, kutular);
   }
 
-  // Kalemin parametresinin hesap tarihindeki değeri (oran yüzde olarak); değiştirmek Tüm fiyatlar'dadır.
+  // Kalemin parametresinin hesap tarihindeki değeri (oran yüzde olarak) ve değiştirildiği yer (tek yer:
+  // liste hücresi Listeler, genel ayar Genel ayarlar, diğerleri Tüm fiyatlar).
   function guncelDeger(x) {
     const { C, durum } = api;
+    const yer = kok.KutuHizli ? kok.KutuHizli.degisecegiYer(x.deger) : 'Tüm fiyatlar';
     const p = durum.katalog.parametreler[x.deger];
     if (!p) return x.deger ? 'parametre yok' : null;
     const y = C.parametre.yururluktekiSatir(p, durum.hesap_tarihi);
-    if (!y) return 'değer yok: fiyat çıkmaz (Tüm fiyatlar\'dan girin)';
+    if (!y) return 'değer yok: fiyat çıkmaz (Parametreler → ' + yer + ' bölümünden girin)';
     const v = y.satir.deger;
     if (x.tip === 'yuzde') {
       const D = C.ondalik;
-      return 'şu an %' + D.metne(D.carp(D.oku(v), D.oku('100')), 4).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',') + ' · değiştirmek: Tüm fiyatlar';
+      return 'şu an %' + D.metne(D.carp(D.oku(v), D.oku('100')), 4).replace(/0+$/, '').replace(/\.$/, '').replace('.', ',') + ' · değiştirmek: ' + yer;
     }
-    return 'şu an ' + v.replace('.', ',') + ' ' + (p.para_birimi || '') + ' · değiştirmek: Tüm fiyatlar';
+    return 'şu an ' + v.replace('.', ',') + ' ' + (p.para_birimi || '') + ' · değiştirmek: ' + yer;
   }
 
   // ---------- yeni ürün / kategori ----------
@@ -6901,10 +6949,12 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return el('details', { sinif: 'yeni-form', 'data-urun-editor': 'yeni-urun' }, el('summary', { metin: '+ Yeni ürün' }),
       el('div', { sinif: 'satir-ici sarmal' },
         alan('Görünen ad', el('input', { type: 'text', value: f.label_tr, placeholder: 'Bornoz', oninput: function (e) { f.label_tr = e.target.value.trim(); } })),
-        alan('Kısa ad (değişmez)', el('input', { type: 'text', value: f.ad, placeholder: 'bornoz', oninput: function (e) { f.ad = e.target.value.trim(); } })),
+        alan(KISA_AD, el('input', { type: 'text', value: f.ad, placeholder: 'otomatik', oninput: function (e) { f.ad = e.target.value.trim(); } })),
         alan('Başlangıç', secim([['', 'boş şablon']].concat(adlar.map(function (a) { return [a, 'kopyala: ' + etiket(k.urunler[a], a)]; })), f.baslangic, function (v) { f.baslangic = v; })),
         katlar.length ? alan('Kategori', secim([['', '— yok —']].concat(katlar.map(function (c) { return [c, etiket(k.kategoriler[c], c)]; })), f.kategori, function (v) { f.kategori = v; })) : null,
         el('button', { type: 'button', sinif: 'dugme', metin: 'Ürünü ekle', onclick: function () {
+          f.ad = kisaAd(f, function (a) { return !!(k.urunler || {})[a]; });
+          if (!f.ad) return;
           const r = uygula(function (x) {
             if (!f.baslangic) return Z().urunEkle(x, f.ad, { label_tr: f.label_tr, kategori: f.kategori || undefined });
             const c = Z().urunKopyala(x, f.baslangic, f.ad, f.label_tr || undefined).katalog;
@@ -6919,8 +6969,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     return el('details', { sinif: 'yeni-form' }, el('summary', { metin: '+ Yeni kategori' }),
       el('div', { sinif: 'satir-ici sarmal' },
         alan('Görünen ad', el('input', { type: 'text', placeholder: 'Yeni kategori', oninput: function (e) { f.label_tr = e.target.value.trim(); } })),
-        alan('Kısa ad (değişmez)', el('input', { type: 'text', placeholder: 'yeni_kategori', oninput: function (e) { f.ad = e.target.value.trim(); } })),
+        alan(KISA_AD, el('input', { type: 'text', placeholder: 'otomatik', oninput: function (e) { f.ad = e.target.value.trim(); } })),
         el('button', { type: 'button', sinif: 'dugme', metin: 'Kategoriyi ekle', onclick: function () {
+          f.ad = kisaAd(f, function (a) { return !!(api.durum.katalog.kategoriler || {})[a]; });
+          if (!f.ad) return;
           const r = uygula(function (x) { return Z().kategoriEkle(x, f.ad, { label_tr: f.label_tr }); }, 'kategori eklendi: ' + (f.label_tr || f.ad));
           if (r) { ek.kategori = f.ad; ek.yeniKategori = { ad: '', label_tr: '' }; yeniden(); }
         } })));
@@ -6946,7 +6998,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   'use strict';
   let api = null;
   // listeTuru: yeni (henüz satırsız) listenin seçilen hücre türü; satır eklenince hücrelerden okunur.
-  const ek = { alt: 'urunler', liste: null, ileti: null, listeTuru: {}, yeniListe: { ad: '', label_tr: '', hucre_turu: 'fiyat' }, yeniSatir: {}, yeniSutun: {}, yeniGenel: { ad: '', label_tr: '', tur: 'sabit', birim: '', para_birimi: '' } };
+  const ek = { alt: 'urunler', liste: null, ileti: null, listeTuru: {}, yeniListe: { ad: '', label_tr: '', hucre_turu: 'fiyat' }, yeniSatir: {}, yeniSutun: {}, yeniGenel: { ad: '', label_tr: '', tur: 'oran', para_birimi: 'EUR' } };
   const PARA = ['EUR', 'TRY', 'USD'];
   const HUCRE_TURU_ADI = { fiyat: 'fiyat (kumaş gibi; kaynak zorunlu)', sabit: 'tutar (paket, nakış, nakliye...)', oran: 'oran (fire, gider; yüzde yazılır: 8 = %8)' };
   // Yeni listenin ilk sütunu hücre türüne göre adlanır.
@@ -7164,12 +7216,11 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const bas = el('tr', null, el('th', { metin: 'Satır' }), oranListesi ? null : el('th', { metin: 'Birim' }), oranListesi ? null : el('th', { metin: 'Para birimi' }),
       l.sutunlar.map(function (s) {
         return el('th', null, etiketKutusu(s.label_tr || '', { sutun: s.ad }, 'sutun-etiket-' + s.ad),
-          el('small', { sinif: 'soluk', metin: s.ad }),
           silDugmesi('sil', function (x) { return P().sutunSil(x, listeAdi, s.ad, kullanim); }, 'sütun silindi: ' + s.ad, '"' + etiket(s, s.ad) + '" sütunu silinsin mi?'));
       }), el('th', { metin: '' }));
     const govdeT = el('tbody', null, l.satirlar.map(function (r) {
       return el('tr', null,
-        el('td', null, etiketKutusu(r.label_tr || '', { satir: r.ad }, 'satir-etiket-' + r.ad), el('small', { sinif: 'soluk', metin: r.ad })),
+        el('td', null, etiketKutusu(r.label_tr || '', { satir: r.ad }, 'satir-etiket-' + r.ad)),
         oranListesi ? null : el('td', { metin: r.birim }), oranListesi ? null : el('td', { metin: r.para_birimi }),
         l.sutunlar.map(function (s) { return r.hucreler[s.ad] ? degerHucresi(r.hucreler[s.ad]) : el('td', { sinif: 'hata-metni', metin: 'hücre yok' }); }),
         el('td', null, silDugmesi('Satırı sil', function (x) { return P().satirSil(x, listeAdi, r.ad, kullanim); }, 'satır silindi: ' + r.ad, '"' + etiket(r, r.ad) + '" satırı silinsin mi?')));
@@ -7284,31 +7335,43 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       const p = k.parametreler[ad];
       const gorev = gorevi(ad);
       return el('tr', null,
-        el('td', null, el('div', { metin: A.parametreEtiketi(k, ad) }), el('small', { sinif: 'soluk', metin: ad })),
+        el('td', { metin: A.parametreEtiketi(k, ad) }),
         !p ? el('td', { sinif: 'hata-metni', metin: 'parametre yok' }) : yerler[ad] === 'liste' ? el('td', { sinif: 'soluk', 'data-deger-yeri': 'liste', metin: "Listeler'de değiştirilir" }) : degerHucresi(ad),
-        el('td', { metin: !p ? '' : p.tur === 'oran' ? 'yüzde (%)' : (p.para_birimi ? p.para_birimi + '/' : '') + p.birim }),
+        el('td', { metin: A.birimMetni(p) }),
         el('td', { 'data-gorev': ad, metin: gorev || (p && p.aciklama) || '' }),
-        el('td', null, gorev ? null : el('button', { type: 'button', sinif: 'dugme kucuk-dugme', metin: 'Listeden çıkar', onclick: function () { uygula(function (x) { return P().genelParametreCikar(x, ad); }, 'genel ayardan çıkarıldı: ' + ad); } })));
+        el('td', null, gorev ? null : el('button', { type: 'button', sinif: 'dugme kucuk-dugme', metin: 'Genel ayarlardan çıkar', onclick: function () { uygula(function (x) { return P().genelParametreCikar(x, ad); }, 'genel ayardan çıkarıldı: ' + ad); } })));
     });
     ekle(govde, el('div', { sinif: 'tablo-kap' }, el('table', null,
-      el('thead', null, el('tr', null, ['Parametre', 'Değer (yeni)', 'Birim', 'Görevi / açıklama', ''].map(function (b) { return el('th', { metin: b }); }))),
+      el('thead', null, el('tr', null, ['Ayar', 'Değer', 'Birim', 'Görevi / açıklama', ''].map(function (b) { return el('th', { metin: b }); }))),
       el('tbody', null, satirlar))));
     degerCubugu(govde, true);
+    // Yeni genel ayar türüne göre kurulur; birim ve para birimi elle yazılmaz (anlamsız birleşim olmasın):
+    // oran yüzde; tutar seçilen para biriminde (yuvarlama adımı gibi); kur "1 döviz = ? TL" (TRY/EUR).
     const f = ek.yeniGenel;
-    ekle(govde, kucukForm('+ Yeni genel ayar', [
-      metin(f, 'label_tr', 'Görünen ad', { placeholder: 'Genel gider oranı' }),
-      metin(f, 'ad', 'Kısa ad (değişmez)', { placeholder: 'genel_gider_orani' }),
-      secim(f, 'tur', 'Tür', [['sabit', 'tutar / sayı'], ['oran', 'oran (yüzde yazılır)'], ['fiyat', 'fiyat']]),
-      metin(f, 'birim', 'Birim', { placeholder: 'TRY/EUR, EUR, oran...' }),
-      secim(f, 'para_birimi', 'Para birimi', [['', '— yok —']].concat(PARA.map(function (p) { return [p, p]; }))),
+    const genelTurKutusu = el('select', { 'data-param': 'genel-tur', onchange: function () { f.tur = genelTurKutusu.value; if (f.tur === 'kur' && f.para_birimi === 'TRY') f.para_birimi = 'EUR'; ek.acikForm = 'genel'; ciz(); } },
+      [['oran', 'oran (yüzde; genel gider gibi)'], ['sabit', 'tutar (yuvarlama adımı gibi)'], ['kur', 'kur (1 döviz kaç TL)']].map(function (o) { return el('option', { value: o[0], metin: o[1] }); }));
+    genelTurKutusu.value = f.tur;
+    const d = kucukForm('+ Yeni genel ayar', [
+      metin(f, 'label_tr', 'Görünen ad', { placeholder: f.tur === 'kur' ? 'USD/TL kuru' : f.tur === 'sabit' ? 'Yuvarlama adımı' : 'Genel gider oranı' }),
+      metin(f, 'ad', KISA_AD, { placeholder: 'otomatik' }),
+      el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: 'Tür' }), genelTurKutusu),
+      f.tur === 'oran' ? null : secim(f, 'para_birimi', f.tur === 'kur' ? 'Döviz' : 'Para birimi', (f.tur === 'kur' ? ['EUR', 'USD'] : PARA).map(function (p) { return [p, p]; })),
     ], 'Ekle', function () {
+      const ad = kisaAd(f, function (a) { return !!api.durum.katalog.parametreler[a]; });
+      ek.acikForm = 'genel';
+      if (!ad) return adsiz();
+      const pb = f.para_birimi || 'EUR';
+      const tanim = f.tur === 'oran' ? { tur: 'oran', birim: 'oran', para_birimi: null }
+        : f.tur === 'kur' ? { tur: 'sabit', birim: 'TRY/' + (pb === 'TRY' ? 'EUR' : pb), para_birimi: null }
+          : { tur: 'sabit', birim: pb, para_birimi: pb };
       const r = uygula(function (x) {
-        const tanim = { tur: f.tur, birim: f.birim || (f.tur === 'oran' ? 'oran' : ''), para_birimi: f.para_birimi || null, label_tr: f.label_tr };
-        const a = kok.KutuDuzen.parametreEkle(x, f.ad, tanim).katalog;
-        return P().genelParametreEkle(a, f.ad);
-      }, 'genel ayar eklendi: ' + (f.label_tr || f.ad));
-      if (r) ek.yeniGenel = { ad: '', label_tr: '', tur: 'sabit', birim: '', para_birimi: '' };
-    }));
+        const a = kok.KutuDuzen.parametreEkle(x, ad, Object.assign(tanim, { label_tr: f.label_tr })).katalog;
+        return P().genelParametreEkle(a, ad);
+      }, 'genel ayar eklendi: ' + (f.label_tr || ad));
+      if (r) { ek.yeniGenel = { ad: '', label_tr: '', tur: f.tur, para_birimi: 'EUR' }; ciz(); }
+    });
+    if (ek.acikForm === 'genel') d.open = true;
+    ekle(govde, d);
   }
 
   kok.KutuParametreEkrani = { kur, ciz, durum: ek, kaydetDurumu };
@@ -7360,9 +7423,15 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const m = h.metin.indexOf(',') === -1 ? h.metin : h.metin.replace(/0+$/, '').replace(/,$/, '');
     return (h.yaklasik ? '≈ ' : '') + m;
   }
-  // Ara değer birimi ekranda: m2 → m², m3 → m³.
+  // Başlıktaki para tutarı: 4 haneye yuvarlanır, sondaki sıfırlar en az 2 hane kalacak biçimde atılır
+  // (iki haneden sonraki sıfırlar atılır, sıfır olmayan hane kalır); tam değilse başında "≈".
+  function para(metin) {
+    const h = haneli(metin, HANE);
+    return (h.yaklasik ? '≈ ' : '') + h.metin.replace(/(,\d\d\d*?)0+$/, '$1');
+  }
+  // Birim ekranda: m2 → m², g/m2 → g/m², m3 → m³.
   function birimMetni(b) {
-    return String(b).replace(/^m2$/, 'm²').replace(/^m3$/, 'm³');
+    return String(b).replace(/m2$/, 'm²').replace(/m3$/, 'm³');
   }
   // Oran kesri ("0.08") → "%8": ondalık nokta iki hane sağa kayar, sondaki sıfırlar atılır.
   function yuzde(oran) {
@@ -7479,8 +7548,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
           ' + boyama farkı ' + kisa(s.fark_degeri) + ' ' + paraSimgesi(s.fark_para_birimi) + '/' + b + ')' + eni +
           (kurlu ? ' → ' + paraSimgesi(pb) + ' (kur ' + kisa(s.kur_degeri) + ')' : '') + ' · listede fiyat yok, ham + boyama farkından';
       }
-      return kisa(s.miktar) + ' ' + b + ' × ' + kisa(s.parametre_degeri) + ' ' + p + '/' + b + eni + kur +
-        (s.sutun ? ' · listeden' : '');
+      return kisa(s.miktar) + ' ' + b + ' × ' + kisa(s.parametre_degeri) + ' ' + p + '/' + b + eni + kur;
     }
     if (s.tip === 'kg_basina') return kisa(s.miktar) + ' kg × ' + kisa(s.parametre_degeri) + ' ' + p + '/kg' + kur;
     // Formül kalemi: ifade, adların yerine okunan değerlerle (TRY ise kaynak tutar ve kur da yazılır).
@@ -7572,7 +7640,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     })).join('\n') + '\n';
   }
 
-  return { haneli, sayi, kisa, yuzde, paraSimgesi, istekKur, girisHatasiMetni, eksikMetni, kalemAdi, satirEtiketi, nasilHesaplandi, kirilim, basliklar, sekmeli };
+  return { haneli, sayi, para, birimMetni, kisa, yuzde, paraSimgesi, istekKur, girisHatasiMetni, eksikMetni, kalemAdi, satirEtiketi, nasilHesaplandi, kirilim, basliklar, sekmeli };
 });
 
 // Seçim ekranı (S-2, ön sekme): ürünü seç → ürünün alanları → bitmiş ürün fiyatı ve Excel gibi maliyet
@@ -7608,7 +7676,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     bosalt(kap);
     ekle(kap, el('h2', { metin: 'Seçim — bitmiş ürün fiyatı' }));
     if (!adlar.length) {
-      ekle(kap, el('p', { metin: 'Bu katalogda ürün şablonu yok. "Uydurma örneği yükle" ile Havlu örneğini deneyebilirsiniz; kendi ürünleriniz Parametre ekranından eklenecek.' }));
+      ekle(kap, el('p', { metin: 'Bu katalogda ürün şablonu yok. "Uydurma örneği yükle" ile Havlu örneğini deneyebilirsiniz; kendi ürünlerinizi Parametreler → Ürünler bölümünden ekleyin.' }));
       ek.sonucKap = null;
       return;
     }
@@ -7617,6 +7685,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       adlar.map(function (ad) { return el('option', { value: ad, metin: etiket(urunler[ad], ad) }); }));
     urunSec.value = ek.urun || '';
     const tarih = el('input', { type: 'date', value: durum.hesap_tarihi, onchange: function () { if (tarih.value) { durum.hesap_tarihi = tarih.value; ek.imza = null; ciz(); } } });
+    const UA = kok.KutuUrunArac;
     const alan = function (ad, kutu, not) {
       return el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: ad }), kutu, not ? el('small', { sinif: 'soluk', metin: not }) : null);
     };
@@ -7626,7 +7695,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     // Hesap tarihi "Gelişmiş" altında (Fable S-2 UX notu); varsayılanı bugün. Bugün değilse kapalıyken de görünür.
     const bugunMu = durum.hesap_tarihi === api.bugun();
     ekle(kap, el('details', { sinif: 'gelismis', open: !bugunMu },
-      el('summary', { metin: 'Gelişmiş' + (bugunMu ? '' : ' — hesap tarihi ' + durum.hesap_tarihi) }),
+      el('summary', { metin: 'Gelişmiş' + (bugunMu ? '' : ' — hesap tarihi ' + api.A.tarihMetni(durum.hesap_tarihi)) }),
       el('div', { sinif: 'izgara' }, alan('Hesap tarihi', tarih, 'fiyatların yürürlüğü ve bayatlık bu tarihe göre; varsayılan bugün'))));
     if (ek.urun !== null) {
       // Listeden seçenek alan alanlar açılmış hâliyle (çekirdeğin hesapta kullandığı açılım).
@@ -7640,9 +7709,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       const ham = hamAl(ek.urun);
       for (const a of u.alanlar) {
         if (a.tur === 'sayi') {
-          ekle(form, alan(etiket(a, a.ad),
+          // Birim başlıkta, aralık kutunun içinde yazılı; altta yalnız adım (tekrar yok).
+          ekle(form, alan(etiket(a, a.ad) + (a.birim ? ' (' + UA.birimMetni(a.birim) + ')' : ''),
             api.sayiKutusu(ham.alanlar[a.ad], { placeholder: a.min + '–' + a.max, 'data-urun-alan': a.ad }, function (v) { ham.alanlar[a.ad] = v; sonucCiz(); }),
-            (a.birim ? a.birim + ' · ' : '') + a.min + '–' + a.max + (a.adim ? ' · adım ' + a.adim : '')));
+            a.adim ? a.min + '\'den ' + a.adim + ' adımlarla' : null));
         } else {
           const sec = el('select', { 'data-urun-alan': a.ad, onchange: function () { ham.alanlar[a.ad] = sec.value; sonucCiz(); } },
             el('option', { value: '', metin: '— seçin —' }),
@@ -7684,19 +7754,27 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         el('p', { metin: A.kodMetni(Object.assign({ kod: s.hata.kod }, s.hata.ayrinti)) }));
       return;
     }
+    // Yalnız ekranda doldurulacak alanlar eksikse bu bir sorun değil, sıradaki adımdır: yumuşak liste.
+    if (s.durum === 'fiyat_yok' && s.eksikler.every(function (e) { return e.tur === 'alan' || e.tur === 'kar_yuzde' || e.tur === 'adet'; })) {
+      ekle(kutu, el('p', { sinif: 'vurgu', metin: 'Fiyat için tamamlayın:' }),
+        el('ul', { sinif: 'liste soluk' }, s.eksikler.map(function (e) { return el('li', { metin: UA.eksikMetni(e, u, k) }); })));
+      return;
+    }
+    // Hücre/parametre değeri yoksa nereden girileceği yazılır (Listeler, Genel ayarlar ya da Tüm fiyatlar).
+    const yeri = function (ad) { return 'Parametreler → ' + (kok.KutuHizli ? kok.KutuHizli.degisecegiYer(ad) : 'Tüm fiyatlar'); };
     if (s.durum === 'fiyat_yok') {
       ekle(kutu, el('div', { sinif: 'buyuk uyari-metni', metin: 'FİYAT YOK' }),
         el('p', { sinif: 'soluk', metin: 'Eksik varken fiyat 0 değil BOŞTUR.' }),
-        el('ul', { sinif: 'liste' }, s.eksikler.map(function (e) { return el('li', { metin: UA.eksikMetni(e, u, k) }); })));
+        el('ul', { sinif: 'liste' }, s.eksikler.map(function (e) { return el('li', { metin: UA.eksikMetni(e, u, k) + (e.tur === 'parametre' ? ' Değerini ' + yeri(e.ad) + ' bölümünden girin.' : '') }); })));
       return;
     }
     const p = UA.paraSimgesi(s.para_birimi);
     ekle(kutu, el('div', { sinif: 'fiyat' },
-      el('div', null, el('span', { sinif: 'buyuk', 'data-urun-sonuc': 'birim_fiyat', metin: UA.sayi(s.birim_fiyat) + ' ' + p }), el('span', { sinif: 'soluk', metin: ' / adet' })),
-      el('div', { 'data-urun-sonuc': 'toplam', metin: 'Sipariş toplamı: ' + UA.sayi(s.toplam) + ' ' + p + ' (' + s.adet + ' adet × ' + UA.sayi(s.birim_fiyat) + ' ' + p + ')' })));
+      el('div', null, el('span', { sinif: 'buyuk', 'data-urun-sonuc': 'birim_fiyat', metin: UA.para(s.birim_fiyat) + ' ' + p }), el('span', { sinif: 'soluk', metin: ' / adet' })),
+      el('div', { 'data-urun-sonuc': 'toplam', metin: 'Sipariş toplamı: ' + UA.para(s.toplam) + ' ' + p + ' (' + s.adet + ' adet × ' + UA.para(s.birim_fiyat) + ' ' + p + ')' })));
     if (s.bayat_parametreler.length) {
       ekle(kutu, el('ul', { sinif: 'liste uyari-metni' }, s.kullanilan_parametreler.filter(function (g) { return g.bayat; }).map(function (g) {
-        return el('li', { metin: 'BAYAT: ' + etiket(k.parametreler[g.ad], g.ad) + ' — son güncelleme ' + (g.alinma_tarihi || '?') + (g.gun_once === null ? '' : ' (' + g.gun_once + ' gün önce, eşik ' + g.bayat_esigi + ')') + '. Fiyat güncelle sekmesinden yenileyin.' });
+        return el('li', { metin: 'BAYAT: ' + etiket(k.parametreler[g.ad], g.ad) + ' — son güncelleme ' + (g.alinma_tarihi ? A.tarihMetni(g.alinma_tarihi) : '?') + (g.gun_once === null ? '' : ' (' + g.gun_once + ' gün önce; ' + g.bayat_esigi + ' günden eskiyse bayat)') + '. ' + yeri(g.ad) + ' bölümünden yenileyin.' });
       })));
     }
     const satirlar = UA.kirilim(s, u, r.istek.alanlar);
@@ -7707,9 +7785,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         el('thead', null, el('tr', null, bas.map(function (b) { return el('th', { metin: b }); }))),
         el('tbody', null, satirlar.map(function (x) {
           // data-baslik: dar ekranda satır kart olur, sayı hücresi başlığıyla görünür (Fable S-2 UX notu).
+          // Telefonda toplam hücresinin başlığı satıra göre: ara toplam satırında "Ara toplam", diğerlerinde "Toplam".
           return el('tr', { sinif: 'kirilim-' + x.tur },
             el('td', { metin: x.kalem }), el('td', { metin: x.nasil }),
-            el('td', { sinif: 'sayi', 'data-baslik': bas[2], metin: x.tutar }), el('td', { sinif: 'sayi', 'data-baslik': bas[3], metin: x.toplam }));
+            el('td', { sinif: 'sayi', 'data-baslik': bas[2], metin: x.tutar }), el('td', { sinif: 'sayi', 'data-baslik': (x.tur === 'ara_toplam' ? 'Ara toplam' : 'Toplam') + ' (' + p + ')', metin: x.toplam }));
         })))));
     const ileti = el('div', { role: 'status', 'aria-live': 'polite' });
     // Teklif kaydı (Fable v1.8 T-c): bağlamsız iç kayıt; maliyet ve kâr içerir, müşteriye gitmez.
@@ -7725,7 +7804,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     el('p', { sinif: 'soluk', metin: 'Teklif kaydı: bu hesabın isteği, sonucu ve damgası (CRM\'e aktarım için). ' + UYARI }),
     ileti,
     el('p', { sinif: 'soluk', metin: '"Tutar" sütununun toplamı satış fiyatıdır; her satır 4 haneye yuvarlanır ve toplamlar yuvarlanmış satırlardan kurulur. ≈ işaretli miktar 4 haneden uzundur, hesapta tam değeri kullanılır.' }),
-    el('p', { sinif: 'soluk damga', metin: 'Hesap damgası — çekirdek ' + s.damga.cekirdek_surumu + ' · ' + api.kisa(s.damga.cekirdek_ozeti) + ' · katalog ' + api.kisa(s.damga.katalog_ozeti) + ' · yapı ' + api.kisa(s.damga.yapi_ozeti) + ' · hesap tarihi ' + s.hesap_tarihi }));
+    el('details', { sinif: 'soluk damga' }, el('summary', { metin: 'Hesap damgası (sürüm kodları)' }), el('p', { metin: 'Çekirdek ' + s.damga.cekirdek_surumu + ' · ' + api.kisa(s.damga.cekirdek_ozeti) + ' · katalog ' + api.kisa(s.damga.katalog_ozeti) + ' · yapı ' + api.kisa(s.damga.yapi_ozeti) + ' · hesap tarihi ' + A.tarihMetni(s.hesap_tarihi) })));
   }
 
   // Panoya sekmeli metin; pano kapalıysa (dosyadan açılmış sayfa, Safari) seçili metin kutusu.
@@ -8067,18 +8146,19 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
 
   function katalogBilgisiCiz() {
     const k = durum.katalog;
-    const kaynakMetni = { ornek: 'uydurma örnek (tarayıcıya kaydedilmedi)', tarayici: 'tarayıcı deposu', dosya: 'dosya: ' + durum.dosya_adi }[durum.kaynak];
+    // Kullanıcıya anlamlı olanlar: ad, nerede durduğu, son kayıt. Özet kodları geri bildirim paketinde ve
+    // Seçim'in hesap damgasındadır; taslak/sürüm yalnız yayınlanmış (salt okunur) katalogda yazılır.
+    const kaynakMetni = { ornek: 'uydurma örnek (tarayıcıya kaydedilmedi)', tarayici: 'bu tarayıcıda kayıtlı', dosya: 'dosyadan açıldı: ' + durum.dosya_adi }[durum.kaynak];
     const satirlar = [
       ['Ad', k.ad || '(adsız)'],
-      ['Durum', (k.durum === 'yayinlandi' ? 'yayınlandı' : 'taslak') + ' · katalog sürümü ' + k.katalog_surumu],
       ['Kaynak', kaynakMetni + (durum.duzenlendi ? ' · Parametrelerde düzenlendi' : '') + (durum.kaydedilmedi ? ' — KAYDEDİLMEDİ' : '')],
-      ['Katalog özeti', kisa(C.katalogOzeti(k)) + ' · yapı ' + kisa(C.yapiOzeti(k))],
     ];
+    if (k.durum === 'yayinlandi') satirlar.push(['Durum', 'yayınlandı (salt okunur) · sürüm ' + k.katalog_surumu]);
     if (durum.kayit && durum.kaynak === 'tarayici') satirlar.push(['Son kayıt', Dp.yerelZaman(durum.kayit.kayit_zamani)]);
     const kutu = bosalt($('katalog-bilgi'));
     ekle(kutu, el('dl', { sinif: 'bilgi' }, satirlar.map(function (s) { return [el('dt', { metin: s[0] }), el('dd', { metin: s[1] })]; })));
     // Katlanmış kartın özet satırı.
-    $('katalog-ozet').textContent = '— ' + (k.ad || '(adsız)') + ' · ' + kaynakMetni + (durum.kaydedilmedi ? ' — KAYDEDİLMEDİ' : '');
+    $('katalog-ozet').textContent = (k.ad || '(adsız)') + ' · ' + kaynakMetni + (durum.kaydedilmedi ? ' — KAYDEDİLMEDİ' : '');
   }
 
   function yedekBilgisiCiz() {
@@ -8097,7 +8177,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } else if (ac.durum === 'erisilemez') {
       ekle(kutu, el('div', { sinif: 'ileti uyari' }, 'Tarayıcı deposu kullanılamıyor (gizli pencere ya da site verisi engelli: ' + ac.neden + '). Yalnız dosyayla çalışın: "Dosyadan aç" ve "Katalog dosyasını indir".'));
     } else if (ac.durum === 'bos' && durum.kaynak === 'ornek') {
-      ekle(kutu, el('div', { sinif: 'ileti bilgi' }, 'İlk açılış: örnek katalog yüklü (havlu ve bornoz; TÜM SAYILAR UYDURMA). Kendi kataloğunuzu "Dosyadan aç" ile yükleyin.'));
+      ekle(kutu, el('div', { sinif: 'ileti bilgi' }, 'İlk açılış: örnek katalog yüklü (havlu ve bornoz; TÜM SAYILAR UYDURMA). Kendi kataloğunuzu Katalog kartındaki "Dosyadan aç" ile yükleyin.'));
     }
   }
 
@@ -8109,13 +8189,13 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const a = A.denetimAyir(d);
     const gecerli = a.engeller.length === 0;
     const agacSayisi = a.agac_engeller.length + a.agac_uyarilar.length;
-    const ozet = (gecerli ? 'Doğrulayıcı: yayın engeli yok' : 'Doğrulayıcı: ' + a.engeller.length + ' YAYIN ENGELİ') +
+    const ozet = (gecerli ? 'Katalog denetimi: sorun yok' : 'Katalog denetimi: ' + a.engeller.length + ' SORUN (fiyat çıkmayabilir)') +
       ' · ' + a.uyarilar.length + ' uyarı' + (eksik ? ' · DENETİM EKSİK' : '') + (agacSayisi ? ' · eski ağaç: ' + agacSayisi + ' not' : '');
     const liste = function (x) { return el('li', { metin: A.kodMetni(x) }); };
     const ayrinti = el('details', { open: !gecerli || eksik },
       el('summary', { sinif: gecerli ? (eksik || a.uyarilar.length ? 'uyari-metni' : 'tamam-metni') : 'hata-metni', metin: ozet }),
       eksik ? el('p', { sinif: 'ileti uyari', metin: d.denetim.not }) : (d.denetim ? el('p', { sinif: 'soluk', metin: d.denetim.not }) : null),
-      a.engeller.length ? el('h4', { metin: 'Engeller' }) : null,
+      a.engeller.length ? el('h4', { metin: 'Sorunlar' }) : null,
       a.engeller.length ? el('ul', { sinif: 'liste hata-metni' }, a.engeller.map(liste)) : null,
       a.uyarilar.length ? el('h4', { metin: 'Uyarılar' }) : null,
       a.uyarilar.length ? el('ul', { sinif: 'liste' }, a.uyarilar.map(liste)) : null,
@@ -8123,7 +8203,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       agacSayisi ? el('ul', { sinif: 'liste soluk', 'data-denetim': 'agac' }, a.agac_engeller.concat(a.agac_uyarilar).map(liste)) : null);
     ekle(kutu, ayrinti);
     const kisaOzet = $('katalog-ozet-denetim');
-    kisaOzet.textContent = '· ' + (gecerli ? 'yayın engeli yok' : a.engeller.length + ' YAYIN ENGELİ') + (eksik ? ' · DENETİM EKSİK' : '');
+    // Kapalı kartta yalnız sorun varsa yazılır ("sorun yok" gürültüdür).
+    kisaOzet.textContent = gecerli && !eksik ? '' : '· ' + (gecerli ? '' : a.engeller.length + ' SORUN') + (eksik ? (gecerli ? '' : ' · ') + 'DENETİM EKSİK' : '');
     kisaOzet.className = gecerli && !eksik ? 'soluk' : 'hata-metni';
   }
 
