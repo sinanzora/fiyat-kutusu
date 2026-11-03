@@ -261,6 +261,27 @@ details.gelismis { margin: 4px 0 8px; }
   #kirilim td:empty, #kirilim td.sayi:empty { display: none; }
   .tablo-kap:has(#kirilim) { overflow-x: visible; border: 0; }
 }
+
+/* Teklif sekmesi (Faz 3) */
+.teklif-urun { display: flex; gap: 8px; align-items: flex-end; margin: 6px 0; }
+.teklif-urun .alan { flex: 1; }
+.teklif-urun textarea { width: 100%; }
+.teklif-gider { align-items: end; }
+/* Müşteri teklifi: ekranda gizli, yalnız yazdırmada (maliyet içermez). */
+#baski { display: none; }
+@media print {
+  body.baskida header, body.baskida main, body.baskida footer { display: none !important; }
+  body.baskida { background: #fff; color: #000; }
+  body.baskida #baski { display: block; font-size: 11pt; }
+  #baski h1 { font-size: 18pt; margin: 4pt 0 10pt; }
+  #baski .baski-firma { font-size: 14pt; font-weight: 600; margin: 0; }
+  #baski table { border-collapse: collapse; width: 100%; margin: 6pt 0; }
+  #baski .baski-bilgi th { text-align: left; width: 30%; font-weight: 600; padding: 2pt 6pt 2pt 0; }
+  #baski .baski-satirlar th, #baski .baski-satirlar td { border: 1px solid #999; padding: 4pt 6pt; }
+  #baski .sayi { text-align: right; white-space: nowrap; }
+  #baski tfoot th { text-align: right; }
+  #baski .baski-alt { margin-top: 12pt; font-size: 9pt; }
+}
 </style>
 </head>
 <body>
@@ -288,10 +309,14 @@ details.gelismis { margin: 4px 0 8px; }
   </section>
   <nav class="sekmeler" role="tablist" aria-label="Bölümler">
     <button id="sekme-dugme-urun" class="sekme" type="button" role="tab">Seçim</button>
+    <button id="sekme-dugme-teklif" class="sekme" type="button" role="tab">Teklif</button>
     <button id="sekme-dugme-parametreler" class="sekme" type="button" role="tab">Parametreler</button>
   </nav>
   <div id="sekme-urun" role="tabpanel">
     <section id="urun" class="kart" aria-label="Seçim"></section>
+  </div>
+  <div id="sekme-teklif" role="tabpanel" hidden>
+    <section id="teklif" class="kart" aria-label="Teklif"></section>
   </div>
   <div id="sekme-parametreler" role="tabpanel" hidden>
     <section id="parametreler" class="kart" aria-label="Parametreler"></section>
@@ -310,6 +335,8 @@ details.gelismis { margin: 4px 0 8px; }
     </details>
   </section>
 </main>
+<!-- Müşteri teklifi: yalnız yazdırmada görünür (maliyet içermez; çekirdeğin beyaz listeli görünümü). -->
+<section id="baski" aria-hidden="true"></section>
 <footer class="soluk">Tüm hakları saklıdır. Ağ isteği yapmaz; veriler yalnız bu tarayıcıda ve indirdiğiniz dosyalarda kalır. <span id="cekirdek-damga"></span></footer>
 <script>
 // ÜRETİLMİŞ: çekirdek/*.cjs birebir (araclar/derle.cjs).
@@ -428,7 +455,7 @@ module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIM
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "1a1f653cc0b4f655764c4acb7133e86aaf8796c523c3c71e884ebc61da34a4d2" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "2700fc7b9f1fec19ceb6fc4d907c826fd89366386e87660a9c4953bdacfbeda8" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -574,7 +601,7 @@ function dogrula(katalog, secenekler) {
     const m = /(^|[^\d.])([1-9]\d{0,2}\.\d{3})(?![\d.])/.exec(String(ifade));
     if (m) uyari('BELIRSIZ_BINLIK', Object.assign({ sabit: m[2] }, yer));
     // Fonksiyon içinde boşluksuz "1,5": virgül argüman ayırıcıdır, ondalık sanılabilir (Fable P4). Yalnız UYARI.
-    const fn = /\b(?:min|max|yukari|yuvarla)\s*\(([^()]*)\)/g;
+    const fn = /\b(?:min|max|yukari|asagi|yuvarla)\s*\(([^()]*)\)/g;
     let f;
     while ((f = fn.exec(String(ifade))) !== null) {
       if (/\d,\d/.test(f[1])) { uyari('VIRGUL_ONDALIK_SUPHESI', Object.assign({ parca: f[0] }, yer)); break; }
@@ -1692,7 +1719,7 @@ module.exports = { fireOtokontrol };
     "./formul.cjs": function (module, exports, require) {
 'use strict';
 // Formül dili: ondalık sabit, değişken adı, + - * /, parantez, tekli eksi,
-// min(a,b), max(a,b), yukari(x,adim), yuvarla(x,n). eval/Function YOK.
+// min(a,b), max(a,b), yukari(x,adim), asagi(x,adim), yuvarla(x,n). eval/Function YOK.
 // Koşul, döngü, metin, nesne erişimi YOK (koşul = ağaç dalıdır).
 
 const D = require('./ondalik.cjs');
@@ -1701,7 +1728,7 @@ const { hata } = require('./hata.cjs');
 // Başlangıç değerleri (ÖLÇÜLMEDİ).
 const SINIRLAR = Object.freeze({ uzunluk: 400, token: 80, derinlik: 12 });
 const AD_DESENI = /^[a-z][a-z0-9_]*$/;
-const FONKSIYONLAR = Object.freeze({ min: 2, max: 2, yukari: 2, yuvarla: 2 });
+const FONKSIYONLAR = Object.freeze({ min: 2, max: 2, yukari: 2, asagi: 2, yuvarla: 2 });
 
 function fonksiyonMu(ad) {
   return Object.prototype.hasOwnProperty.call(FONKSIYONLAR, ad);
@@ -1861,6 +1888,7 @@ function degerlendir(agac, oku) {
       if (agac.ad === 'min') return D.enKucuk(a, c);
       if (agac.ad === 'max') return D.enBuyuk(a, c);
       if (agac.ad === 'yukari') return D.yukari(a, c);
+      if (agac.ad === 'asagi') return D.asagi(a, c);
       if (!D.tamsayiMi(c)) throw hata('YUVARLA_HANE_GECERSIZ');
       const n = D.tamsayiya(c);
       if (n < 0 || n > D.OLCEK_HANE) throw hata('YUVARLA_HANE_GECERSIZ');
@@ -2357,6 +2385,7 @@ const { dogrula } = require('./dogrula.cjs');
 const Dn = require('./dondur.cjs');
 const Fi = require('./fire.cjs');
 const T = require('./teklif.cjs');
+const Td = require('./teklifdosya.cjs');
 const Cr = require('./crm.cjs');
 const DAMGA = require('./damga.cjs');
 const { CekirdekHatasi } = require('./hata.cjs');
@@ -2377,6 +2406,15 @@ module.exports = {
   urunAcilimi: U.urunAcilimi,
   teklifKaydi: T.teklifKaydi,
   teklifKaydiDenetle: T.teklifKaydiDenetle,
+  TEKLIF_BICIM_SURUMU: T.TEKLIF_BICIM_SURUMU,
+  teklifDosyasiKur: Td.teklifDosyasiKur,
+  teklifOnayla: Td.teklifOnayla,
+  teklifDosyasiDenetle: Td.teklifDosyasiDenetle,
+  musteriGorunumu: Td.musteriGorunumu,
+  teklifDosyasiGirdisi: Td.dosyaGirdisi,
+  TEKLIF_DOSYASI_BICIMI: Td.TEKLIF_DOSYASI_BICIMI,
+  TESLIM_SEKILLERI: Td.TESLIM_SEKILLERI,
+  ORTAK_GIDER_TURLERI: Td.ORTAK_GIDER_TURLERI,
   crmRevizyonAlanlari: Cr.crmRevizyonAlanlari,
   CRM_PARA_BIRIMLERI: Cr.CRM_PARA_BIRIMLERI,
   CRM_BIRIM: Cr.CRM_BIRIM,
@@ -2627,6 +2665,14 @@ function yukari(v, adim) {
   return sinirla(q * adim);
 }
 
+// adimin katına −∞ yönünde yuvarlar (pastal: enine sığan parça sayısı).
+function asagi(v, adim) {
+  if (adim <= 0n) throw hata('ADIM_GECERSIZ');
+  let q = v / adim;
+  if (v % adim < 0n) q -= 1n;
+  return sinirla(q * adim);
+}
+
 function tamsayiMi(v) {
   return v % OLCEK === 0n;
 }
@@ -2649,7 +2695,7 @@ function metne(v, hane) {
 module.exports = {
   OLCEK_HANE, OLCEK, TUTAR_HANE, SINIR,
   oku, tamsayidan, topla, cikar, carp, bol, eksi, enKucuk, enBuyuk,
-  bolYuvarla, yuvarlaHane, kesirdenHane, yukari, tamsayiMi, tamsayiya, metne, sinirla,
+  bolYuvarla, yuvarlaHane, kesirdenHane, yukari, asagi, tamsayiMi, tamsayiya, metne, sinirla,
 };
 
     },
@@ -3220,6 +3266,15 @@ function urunIstekSekli(istek) {
   if (istek.bayat_onaylari !== undefined && !(Array.isArray(istek.bayat_onaylari) && istek.bayat_onaylari.every(metinMi))) {
     throw iBozuk('bayat_onaylari');
   }
+  // Faz 3: teklif dosyasının dağıttığı ortak gider payları { kalem, label_tr?, tutar } (sipariş toplamı).
+  if (istek.ek_giderler !== undefined) {
+    const izinli = ['kalem', 'label_tr', 'tutar'];
+    const gecerli = Array.isArray(istek.ek_giderler) && istek.ek_giderler.every(function (g) {
+      return nesneMi(g) && metinMi(g.kalem) && metinMi(g.tutar) && (g.label_tr === undefined || metinMi(g.label_tr)) &&
+        Object.keys(g).every(function (k) { return izinli.indexOf(k) !== -1; });
+    });
+    if (!gecerli) throw iBozuk('ek_giderler');
+  }
 }
 
 module.exports = {
@@ -3274,7 +3329,7 @@ const KUR_KAYNAGI = 'TRY';
 
 // Formül fonksiyon adları ve `adet` ad olarak kullanılamaz (adet ileride formüle
 // açılabilsin diye şimdiden ayrılmıştır; v1'de formül adet'i GÖRMEZ).
-const AYRILMIS_ADLAR = Object.freeze(['adet', 'min', 'max', 'yukari', 'yuvarla']);
+const AYRILMIS_ADLAR = Object.freeze(['adet', 'min', 'max', 'yukari', 'asagi', 'yuvarla']);
 // Sipariş başı satırların birim etiketi.
 const SIPARIS_BIRIMI = 'siparis';
 // Blok satırında birim "yol": satır, başvurulduğu yolun fiyat birimini taşır.
@@ -3425,7 +3480,9 @@ const BICIM = 'fiyat-teklif-kaydi';
 // 2 (3 Kasım): sonuçta kar_esasi ve brüt kâr alanları (F1-a); bayat fiyatlı kayıt yok (F1-b).
 // 3 (3 Kasım): sonuçta tahmini, okunmayan_alanlar ve yeni kalem satırları (sipariş/parti başına); tahmini
 // sarfiyatla kayıt yok.
-const BICIM_SURUMU = 3;
+// 4 (3 Kasım, Faz 3): istekte ek_giderler (teklif dosyasının dağıttığı ortak gider payı), sonuçta 'ek_gider'
+// satırları; 3 Kasım kapsam düzeltmesi (MOQ/işlem alanları çıktı) de bu sürüme sayılır. Sürüm 1–3 reddedilir.
+const BICIM_SURUMU = 4;
 const ALANLAR = ['bicim', 'bicim_surumu', 'istek', 'sonuc', 'damga', 'ozet'];
 
 // Kanonik JSON'dan geçmiş derin kopya (JSON-güvenli olmayan değer KANONIK_* hatası verir).
@@ -3522,6 +3579,281 @@ function teklifKaydiDenetle(katalog, kayit) {
 }
 
 module.exports = { teklifKaydi, teklifKaydiDenetle, TEKLIF_BICIMI: BICIM, TEKLIF_BICIM_SURUMU: BICIM_SURUMU };
+
+    },
+    "./teklifdosya.cjs": function (module, exports, require) {
+'use strict';
+// Çok ürünlü teklif dosyası (Faz 3, 3 Kasım; Fable danışması). Birden çok ürün isteği, teklif bilgileri
+// (teslim şekli, geçerlilik) ve ortak giderler → her satırı kendi başına yeniden hesaplanabilir biçim-4 teklif
+// kaydı olan, sürümlü, donmuş, özetli bir dosya. Kullanıcı kararları: ortak gider satırların ORTAK GİDERSİZ
+// satış toplamı oranında otomatik dağıtılır ve maliyettir (kâra tabi); FOB seçiliyse FOB masrafı girilmeden
+// dosya kurulmaz, EXW'de FOB kalemleri dağıtıma girmez (dosyada kalır). Ürün motoru dağıtmaz: pay isteğin
+// `ek_giderler`ine yazılır. Onay yalnız bu dosyada yaşar ({ onaylayan, tarih, dosya_ozeti }); bir KAYITTIR,
+// yetki değildir; teklif kaydına ve CRM adaptörüne girmez. Dosya bu fazda CRM'e girmez. Müşteri görünümü
+// beyaz listedir: maliyet, kâr, damga, onay ve dağıtım taşımaz. Saat okunmaz: tarihler dışarıdan gelir.
+
+const D = require('./ondalik.cjs');
+const S = require('./sozlesme.cjs');
+const Sk = require('./sekil.cjs');
+const { hata, kendiAlani, CekirdekHatasi } = require('./hata.cjs');
+const { sha256, kanonikJson } = require('./ozet.cjs');
+const { dondur } = require('./dondur.cjs');
+const { gunFarki } = require('./tarih.cjs');
+const U = require('./urun.cjs');
+const T = require('./teklif.cjs');
+
+const BICIM = 'fiyat-teklif-dosyasi';
+const BICIM_SURUMU = 1;
+const MUSTERI_BICIMI = 'fiyat-musteri-teklifi';
+const TESLIM_SEKILLERI = Object.freeze(['EXW', 'FOB']);
+const GIDER_TURLERI = Object.freeze(['genel', 'fob']);
+const ORTAK_ONEKI = 'ortak_';
+const HANE = S.URUN_HANE;
+const PAY_ADIMI = D.oku('0.0001');
+const METIN_SINIRI = 500;
+const ALANLAR = ['bicim', 'bicim_surumu', 'teklif', 'ortak_giderler', 'satirlar', 'dagitim', 'toplam', 'onay', 'ozet'];
+const TEKLIF_ALANLARI = ['teklif_no', 'firma', 'musteri', 'teslim_sekli', 'teslim_yeri', 'gecerlilik_tarihi', 'hesap_tarihi', 'not'];
+const SECIMLI_METINLER = ['teklif_no', 'firma', 'musteri', 'teslim_yeri', 'not'];
+
+function kopya(x) {
+  return JSON.parse(kanonikJson(x));
+}
+
+function metin(x, sinir) {
+  return typeof x === 'string' && x.length <= (sinir || METIN_SINIRI);
+}
+
+function bicimHatasi(alan) {
+  return hata('DOSYA_BICIM', { alan });
+}
+
+function tarihOku(x, alan) {
+  try {
+    gunFarki(x, x);
+  } catch (e) {
+    if (e instanceof CekirdekHatasi) throw bicimHatasi(alan);
+    throw e;
+  }
+  return x;
+}
+
+function ondalikOku(x, alan) {
+  if (typeof x !== 'string') throw bicimHatasi(alan);
+  try {
+    return D.oku(x);
+  } catch (e) {
+    if (e instanceof CekirdekHatasi) throw bicimHatasi(alan);
+    throw e;
+  }
+}
+
+// Teklif bilgileri: yalnız bilinen alanlar; seçimli metinler yoksa null.
+function teklifBilgisi(t) {
+  if (!Sk.nesneMi(t) || !Object.keys(t).every(function (k) { return TEKLIF_ALANLARI.indexOf(k) !== -1; })) throw bicimHatasi('teklif');
+  if (TESLIM_SEKILLERI.indexOf(t.teslim_sekli) === -1) throw hata('DOSYA_TESLIM_SEKLI');
+  const b = { teslim_sekli: t.teslim_sekli, hesap_tarihi: tarihOku(t.hesap_tarihi, 'hesap_tarihi'), gecerlilik_tarihi: tarihOku(t.gecerlilik_tarihi, 'gecerlilik_tarihi') };
+  for (const ad of SECIMLI_METINLER) {
+    if (t[ad] !== undefined && t[ad] !== null && !metin(t[ad])) throw bicimHatasi(ad);
+    b[ad] = t[ad] === undefined || t[ad] === '' ? null : t[ad];
+  }
+  if (gunFarki(b.hesap_tarihi, b.gecerlilik_tarihi) < 0) throw hata('DOSYA_GECERLILIK');
+  return b;
+}
+
+// Ortak giderler: { ad, label_tr, tutar (> 0, teklif para biriminde, sipariş toplamı), tur: genel | fob }.
+function ortakGiderler(liste) {
+  if (liste === undefined) return [];
+  if (!Array.isArray(liste)) throw bicimHatasi('ortak_giderler');
+  const adlar = new Set();
+  return liste.map(function (g) {
+    if (!Sk.nesneMi(g) || !Object.keys(g).every(function (k) { return ['ad', 'label_tr', 'tutar', 'tur'].indexOf(k) !== -1; })) throw bicimHatasi('ortak_giderler');
+    if (!S.adGecerliMi(g.ad) || adlar.has(g.ad) || !metin(g.label_tr, 200) || GIDER_TURLERI.indexOf(g.tur) === -1) throw hata('DOSYA_ORTAK_GIDER_GECERSIZ', { ad: typeof g.ad === 'string' ? g.ad : null });
+    adlar.add(g.ad);
+    const t = ondalikOku(g.tutar, 'ortak_giderler');
+    if (t <= 0n || D.yuvarlaHane(t, HANE) !== t) throw hata('DOSYA_ORTAK_GIDER_GECERSIZ', { ad: g.ad });
+    return { ad: g.ad, label_tr: g.label_tr, tutar: g.tutar, tur: g.tur };
+  });
+}
+
+function satirHesabi(katalog, istek, sira) {
+  const s = U.urunHesapla(katalog, istek);
+  if (s.durum !== 'tamam') throw hata('DOSYA_SATIR_FIYAT_YOK', { sira, durum: s.durum, kod: s.durum === 'hata' ? s.hata.kod : null });
+  return s;
+}
+
+// Satış toplamı oranında dağıtım (Fable sertleştirme a): tamsayı (10^-4) paylar AŞAĞI yuvarlanır (Fable P5-1:
+// en yakına yuvarlamada çok küçük giderde kalan eksiye düşebiliyordu); kalan son satıra, satır sırası
+// dosyanın parçasıdır (özet kapsar). Σ pay = ortak gider BİREBİR.
+function dagit(tutar, toplamlar) {
+  const toplam = toplamlar.reduce(function (a, t) { return a + t; }, 0n);
+  if (toplam <= 0n) throw hata('DOSYA_DAGITIM', { neden: 'toplam_sifir' });
+  const paylar = [];
+  let dagitilan = 0n;
+  toplamlar.forEach(function (t, i) {
+    if (i === toplamlar.length - 1) { paylar.push(tutar - dagitilan); return; }
+    const p = D.asagi(tutar * t / toplam, PAY_ADIMI);
+    paylar.push(p);
+    dagitilan += p;
+  });
+  if (paylar[paylar.length - 1] < 0n) throw hata('DOSYA_DAGITIM', { neden: 'kalan_negatif' });
+  return paylar;
+}
+
+function govdeOzeti(g) {
+  return sha256(kanonikJson({ bicim: g.bicim, bicim_surumu: g.bicim_surumu, teklif: g.teklif, ortak_giderler: g.ortak_giderler, satirlar: g.satirlar, dagitim: g.dagitim, toplam: g.toplam }));
+}
+
+// girdi: { teklif: { teslim_sekli, hesap_tarihi, gecerlilik_tarihi, teklif_no?, firma?, musteri?, teslim_yeri?, not? },
+//          satirlar: [{ istek, aciklama }], ortak_giderler?: [{ ad, label_tr, tutar, tur }] }
+function teklifDosyasiKur(katalog, girdi) {
+  if (!Sk.nesneMi(girdi) || !Object.keys(girdi).every(function (k) { return ['teklif', 'satirlar', 'ortak_giderler'].indexOf(k) !== -1; })) throw bicimHatasi(null);
+  const teklif = teklifBilgisi(girdi.teklif);
+  const giderler = ortakGiderler(girdi.ortak_giderler);
+  if (!Array.isArray(girdi.satirlar) || girdi.satirlar.length === 0) throw hata('DOSYA_SATIR_YOK');
+  const satirlar = girdi.satirlar.map(function (x, sira) {
+    if (!Sk.nesneMi(x) || !Object.keys(x).every(function (k) { return k === 'istek' || k === 'aciklama'; }) || !metin(x.aciklama) || x.aciklama.trim() === '') throw bicimHatasi('satirlar');
+    try { Sk.urunIstekSekli(x.istek); } catch (e) {
+      if (e instanceof CekirdekHatasi) throw bicimHatasi('satirlar');
+      throw e;
+    }
+    if (x.istek.ek_giderler !== undefined) throw hata('DOSYA_EK_GIDER_ISTEKTE', { sira });
+    if (x.istek.hesap_tarihi !== teklif.hesap_tarihi) throw hata('DOSYA_TARIH_UYUSMAZ', { sira });
+    return { aciklama: x.aciklama, istek: kopya(x.istek) };
+  });
+  // FOB: masraf girilmeden fiyat FOB olamaz (uydurma yok); EXW: FOB kalemleri dağıtıma girmez.
+  const etkin = function (g) { return g.tur === 'genel' || teklif.teslim_sekli === 'FOB'; };
+  if (teklif.teslim_sekli === 'FOB' && !giderler.some(function (g) { return g.tur === 'fob'; })) throw hata('DOSYA_FOB_MASRAFI_YOK');
+  // 1. Ortak gidersiz hesap: dağıtım tabanı satış toplamları; bütün satırlar aynı para biriminde.
+  const ilk = satirlar.map(function (x, sira) { return satirHesabi(katalog, x.istek, sira); });
+  const pb = ilk[0].para_birimi;
+  ilk.forEach(function (s, sira) { if (s.para_birimi !== pb) throw hata('DOSYA_PARA_BIRIMI', { sira }); });
+  const tabanlar = ilk.map(function (s) { return D.oku(s.toplam); });
+  const dagitim = giderler.map(function (g) {
+    const e = etkin(g);
+    return { ad: g.ad, label_tr: g.label_tr, tur: g.tur, tutar: g.tutar, etkin: e, paylar: e ? dagit(D.oku(g.tutar), tabanlar).map(function (p) { return D.metne(p, HANE); }) : null };
+  });
+  // 2. Paylı hesap ve teklif kaydı (bayat, tahmini, uyuşmazlık burada reddedilir).
+  const kayitlar = satirlar.map(function (x, sira) {
+    const ek = dagitim.filter(function (d) { return d.etkin; }).map(function (d) { return { kalem: ORTAK_ONEKI + d.ad, label_tr: d.label_tr, tutar: d.paylar[sira] }; });
+    const istek = ek.length ? Object.assign({}, x.istek, { ek_giderler: ek }) : x.istek;
+    const s = satirHesabi(katalog, istek, sira);
+    let kayit;
+    try {
+      kayit = T.teklifKaydi(istek, s);
+    } catch (e) {
+      if (e instanceof CekirdekHatasi) throw hata('DOSYA_SATIR_TEKLIF', { sira, kod: e.kod });
+      throw e;
+    }
+    return { aciklama: x.aciklama, kayit: kopya(kayit) };
+  });
+  let genel = 0n;
+  for (const k of kayitlar) genel += D.oku(k.kayit.sonuc.toplam);
+  let ortak = 0n;
+  for (const d of dagitim) if (d.etkin) ortak += D.oku(d.tutar);
+  const govde = {
+    bicim: BICIM, bicim_surumu: BICIM_SURUMU,
+    teklif: Object.assign({ para_birimi: pb }, teklif),
+    ortak_giderler: giderler,
+    satirlar: kayitlar,
+    dagitim,
+    toplam: {
+      ortak_gidersiz: D.metne(tabanlar.reduce(function (a, t) { return a + t; }, 0n), HANE),
+      ortak_gider: D.metne(ortak, HANE),
+      genel: D.metne(genel, HANE),
+    },
+  };
+  return dondur(Object.assign({}, govde, { onay: null, ozet: govdeOzeti(govde) }));
+}
+
+// Dosyanın kurulduğu girdi (yeniden hesap ve düzenleme için): isteklerden ek_giderler çıkarılır.
+function dosyaGirdisi(dosya) {
+  const t = {};
+  for (const ad of TEKLIF_ALANLARI) if (dosya.teklif[ad] !== null && dosya.teklif[ad] !== undefined) t[ad] = dosya.teklif[ad];
+  return {
+    teklif: t,
+    satirlar: dosya.satirlar.map(function (x) {
+      const i = kopya(x.kayit.istek);
+      delete i.ek_giderler;
+      return { istek: i, aciklama: x.aciklama };
+    }),
+    ortak_giderler: kopya(dosya.ortak_giderler),
+  };
+}
+
+// Onay KAYDI (yetki değil): onaylayan adı ve tarihi, dosyanın özetine bağlı; dosya değişince düşer.
+function teklifOnayla(dosya, onay) {
+  const d = teklifDosyasiDenetle(dosya);
+  if (!d.gecerli) throw hata('DOSYA_BOZUK', { neden: d.neden });
+  if (!Sk.nesneMi(onay) || !metin(onay.onaylayan, 200) || onay.onaylayan.trim() === '') throw hata('ONAY_GECERSIZ', { alan: 'onaylayan' });
+  tarihOku(onay.tarih, 'tarih');
+  if (gunFarki(dosya.teklif.hesap_tarihi, onay.tarih) < 0 || gunFarki(onay.tarih, dosya.teklif.gecerlilik_tarihi) < 0) throw hata('ONAY_GECERSIZ', { alan: 'tarih' });
+  return dondur(Object.assign(kopya(dosya), { onay: { onaylayan: onay.onaylayan.trim(), tarih: onay.tarih, dosya_ozeti: dosya.ozet } }));
+}
+
+// Denetim: biçim, özet, onayın özete bağlılığı; katalog verilirse dosya aynı girdiden yeniden kurulur ve
+// birebir tutmalı (fiyat değişmişse YENIDEN_HESAP_FARKLI: eski teklif kendiliğinden değişmez, yalnız işaret).
+function teklifDosyasiDenetle(dosya, katalog) {
+  const sonuc = function (neden, onayli) { return dondur({ gecerli: neden === null, neden, onayli: neden === null && onayli === true }); };
+  try {
+    if (!Sk.nesneMi(dosya) || Object.keys(dosya).sort().join() !== ALANLAR.slice().sort().join()) return sonuc('BICIM');
+    if (dosya.bicim !== BICIM || dosya.bicim_surumu !== BICIM_SURUMU) return sonuc('BICIM');
+    if (!Sk.nesneMi(dosya.teklif) || !Array.isArray(dosya.satirlar) || !Array.isArray(dosya.dagitim) || !Sk.nesneMi(dosya.toplam)) return sonuc('BICIM');
+    if (dosya.ozet !== govdeOzeti(dosya)) return sonuc('OZET');
+  } catch (e) {
+    if (e instanceof CekirdekHatasi) return sonuc('BICIM');
+    throw e;
+  }
+  let onayli = false;
+  if (dosya.onay !== null) {
+    const o = dosya.onay;
+    if (!Sk.nesneMi(o) || Object.keys(o).sort().join() !== 'dosya_ozeti,onaylayan,tarih' || !metin(o.onaylayan, 200)) return sonuc('BICIM');
+    onayli = o.dosya_ozeti === dosya.ozet;
+  }
+  if (katalog !== undefined) {
+    let yeni;
+    try {
+      yeni = teklifDosyasiKur(katalog, dosyaGirdisi(dosya));
+    } catch (e) {
+      if (e instanceof CekirdekHatasi) return sonuc('YENIDEN_HESAP_FARKLI');
+      throw e;
+    }
+    if (yeni.ozet !== dosya.ozet) return sonuc('YENIDEN_HESAP_FARKLI');
+  }
+  return sonuc(null, onayli);
+}
+
+// Müşteri görünümü (BEYAZ LİSTE): yalnız sayılan alanlar; onaysız ya da onayı düşmüş dosyadan üretilmez.
+function musteriGorunumu(dosya) {
+  const d = teklifDosyasiDenetle(dosya);
+  if (!d.gecerli) throw hata('DOSYA_BOZUK', { neden: d.neden });
+  if (!d.onayli) throw hata('DOSYA_ONAYSIZ');
+  const t = dosya.teklif;
+  const secimli = function (ad) { return kendiAlani(t, ad) && t[ad] !== null ? String(t[ad]) : null; };
+  const satirlar = dosya.satirlar.map(function (x, i) {
+    const s = x.kayit.sonuc;
+    return { sira: i + 1, aciklama: String(x.aciklama), adet: String(s.adet), birim_fiyat: String(s.birim_fiyat), toplam: String(s.toplam) };
+  });
+  return dondur({
+    bicim: MUSTERI_BICIMI,
+    teklif_no: secimli('teklif_no'),
+    firma: secimli('firma'),
+    musteri: secimli('musteri'),
+    tarih: String(t.hesap_tarihi),
+    gecerlilik_tarihi: String(t.gecerlilik_tarihi),
+    teslim_sekli: String(t.teslim_sekli),
+    teslim_yeri: secimli('teslim_yeri'),
+    para_birimi: String(t.para_birimi),
+    not: secimli('not'),
+    satirlar,
+    genel_toplam: String(dosya.toplam.genel),
+  });
+}
+
+module.exports = {
+  teklifDosyasiKur, teklifOnayla, teklifDosyasiDenetle, musteriGorunumu, dosyaGirdisi,
+  TEKLIF_DOSYASI_BICIMI: BICIM, TEKLIF_DOSYASI_BICIM_SURUMU: BICIM_SURUMU, MUSTERI_TEKLIFI_BICIMI: MUSTERI_BICIMI,
+  TESLIM_SEKILLERI, ORTAK_GIDER_TURLERI: GIDER_TURLERI, ORTAK_GIDER_ONEKI: ORTAK_ONEKI,
+};
 
     },
     "./urun.cjs": function (module, exports, require) {
@@ -4388,6 +4720,20 @@ function hesaplaIc(katalog, istek, ozetler) {
       }
     }
   }
+  // Faz 3 (3 Kasım): çok ürünlü teklifte bu ürüne düşen ortak gider payı. Motor DAĞITMAZ: payı teklif
+  // dosyası hesaplar ve isteğe yazar. Pay sipariş toplamıdır (ürünün para biriminde), adede bölünür;
+  // maliyete girer, ara toplama (genel gider matrahına) girmez, kâra tabidir (kullanıcı kararı).
+  for (const g of istek.ek_giderler || []) {
+    if (!S.AD_DESENI.test(g.kalem) || kalemAdlari.has(g.kalem)) throw hata('EK_GIDER_GECERSIZ', { urun: urunAdi, kalem: g.kalem });
+    kalemAdlari.add(g.kalem);
+    const pay = sayiOku(g.tutar, 'ek_giderler');
+    if (pay < 0n) throw hata('EK_GIDER_GECERSIZ', { urun: urunAdi, kalem: g.kalem });
+    if (adet === null) continue;
+    sonraEklenecek.push({
+      kalem: g.kalem, label_tr: g.label_tr, tip: 'ek_gider', kaynak: { tur: 'istek' }, parametre: null, miktar: adet, miktar_birimi: 'adet',
+      kaynak_tutar: pay, ara_toplama_girer: false, tutar: D.kesirdenHane(pay, adet, HANE),
+    });
+  }
   // Ara toplam matrahlı yüzdelerin parametreleri eksik olsa da şimdi okunur: bütün eksikler bir kerede.
   const araOranlari = araYuzde.map(function (x) { return parametreOku(x.k.deger, 'yuzde'); });
   // Satış fiyatı yuvarlama adımı (A8): üründe, yoksa genel ayarlarda; yoksa yuvarlama yok, 0 = yok.
@@ -4547,7 +4893,7 @@ module.exports = { urunHesapla, dagilimHesapla, urunBirlestir, urunGenislet, uru
   return iste('./index.cjs');
 })();
 // Uydurma örnek katalog (test/yardimci/cok-dalli.cjs + havlu.cjs). TÜM SAYILAR UYDURMA.
-window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYILAR UYDURMA\",\n  \"bicim\": \"fiyat-deneme-katalog\",\n  \"bicim_surumu\": 1,\n  \"bloklar\": {},\n  \"dugumler\": {\n    \"bos\": {\n      \"cocuklar\": [],\n      \"label_en\": \"Unused\",\n      \"label_tr\": \"Kullanılmıyor\",\n      \"satirlar\": [\n        {\n          \"birim\": \"adet\",\n          \"ifade\": \"1\",\n          \"kalem\": \"yer_tutucu\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ],\n      \"tur\": \"secenek\"\n    },\n    \"urun\": {\n      \"cocuklar\": [\n        \"bos\"\n      ],\n      \"fiyat_birimi\": \"adet\",\n      \"label_en\": \"Product\",\n      \"label_tr\": \"Ürün\",\n      \"tur\": \"soru\"\n    }\n  },\n  \"durum\": \"taslak\",\n  \"genel_ayarlar\": {\n    \"kur\": \"eur_tl_kuru\",\n    \"parametreler\": [\n      \"eur_tl_kuru\",\n      \"genel_gider_orani\",\n      \"satis_yuvarlama\"\n    ],\n    \"yuvarlama_adimi\": \"satis_yuvarlama\"\n  },\n  \"katalog_surumu\": 0,\n  \"kategoriler\": {\n    \"bornoz\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"gsm\",\n          \"birim\": \"g/m2\",\n          \"label_tr\": \"GSM\",\n          \"max\": \"900\",\n          \"min\": \"100\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"pamuk\",\n            \"waffle\",\n            \"muslin\"\n          ],\n          \"sutun_alani\": \"kumas_islemi\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"kumas_islemi\",\n          \"label_tr\": \"Kumaş işlemi\",\n          \"secenekler\": [\n            {\n              \"ad\": \"boyali\",\n              \"kalemler\": [],\n              \"label_tr\": \"Boyalı\",\n              \"sutun\": \"boyali\"\n            },\n            {\n              \"ad\": \"baskili\",\n              \"kalemler\": [\n                {\n                  \"bicim\": \"zincir_carpan\",\n                  \"deger\": \"baski_firesi\",\n                  \"kalem\": \"baski_firesi\",\n                  \"label_tr\": \"Baskı firesi\",\n                  \"tip\": \"yuzde\"\n                }\n              ],\n              \"label_tr\": \"Baskılı\",\n              \"sutun\": \"baskili\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"nakis\",\n          \"label_tr\": \"Nakış\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"nakis\",\n                  \"kalem\": \"nakis\",\n                  \"label_tr\": \"Nakış\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"kutu\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_kutu\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Kutulu\"\n            },\n            {\n              \"ad\": \"aski\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_aski\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Askılı\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Bornoz\"\n    },\n    \"havlu\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"en_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"En\",\n          \"max\": \"200\",\n          \"min\": \"20\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"boy_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"Boy\",\n          \"max\": \"250\",\n          \"min\": \"20\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"gsm\",\n          \"birim\": \"g/m2\",\n          \"label_tr\": \"GSM\",\n          \"max\": \"900\",\n          \"min\": \"100\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"pamuk\",\n            \"waffle\"\n          ],\n          \"sutun_alani\": \"kumas_islemi\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"kumas_islemi\",\n          \"label_tr\": \"Kumaş işlemi\",\n          \"secenekler\": [\n            {\n              \"ad\": \"boyali\",\n              \"kalemler\": [],\n              \"label_tr\": \"Boyalı\",\n              \"sutun\": \"boyali\"\n            },\n            {\n              \"ad\": \"baskili\",\n              \"kalemler\": [\n                {\n                  \"bicim\": \"zincir_carpan\",\n                  \"deger\": \"baski_firesi\",\n                  \"kalem\": \"baski_firesi\",\n                  \"label_tr\": \"Baskı firesi\",\n                  \"tip\": \"yuzde\"\n                }\n              ],\n              \"label_tr\": \"Baskılı\",\n              \"sutun\": \"baskili\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"nakis\",\n          \"label_tr\": \"Nakış\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"nakis\",\n                  \"kalem\": \"nakis\",\n                  \"label_tr\": \"Nakış\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"kutu\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_kutu\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Kutulu\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"en_cm * boy_cm / 10000\",\n          \"label_tr\": \"Parça alanı\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Parça ağırlığı\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Havlu\"\n    }\n  },\n  \"kok\": \"urun\",\n  \"listeler\": {\n    \"kumaslar\": {\n      \"label_tr\": \"Kumaşlar\",\n      \"satirlar\": [\n        {\n          \"ad\": \"pamuk\",\n          \"birim\": \"kg\",\n          \"hucreler\": {\n            \"baskili\": \"pamuk_baskili\",\n            \"boyali\": \"pamuk_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk · 16/1 OE · 400 GSM\",\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"saten_cizgili\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"saten_cizgili_baskili\",\n            \"boyali\": \"saten_cizgili_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Saten · 1 cm Çizgili · 212 TC · 240 cm en\",\n          \"ozellikler\": {\n            \"kumas_eni_cm\": \"240\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"saten_duz\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"saten_duz_baskili\",\n            \"boyali\": \"saten_duz_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Saten · Düz · 212 TC · 240 cm en\",\n          \"ozellikler\": {\n            \"kumas_eni_cm\": \"240\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"ranforce\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"ranforce_baskili\",\n            \"boyali\": \"ranforce_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Ranforce · 157 TC · 240 cm en · 125 GSM\",\n          \"ozellikler\": {\n            \"kumas_eni_cm\": \"240\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"waffle\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"waffle_baskili\",\n            \"boyali\": \"waffle_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Waffle · 310 GSM · 155 cm en\",\n          \"ozellikler\": {\n            \"kumas_eni_cm\": \"155\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"muslin\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"muslin_baskili\",\n            \"boyali\": \"muslin_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Müslin · Çift kat · 145 cm en\",\n          \"ozellikler\": {\n            \"kumas_eni_cm\": \"145\"\n          },\n          \"para_birimi\": \"TRY\"\n        }\n      ],\n      \"sutunlar\": [\n        {\n          \"ad\": \"boyali\",\n          \"label_tr\": \"Boyalı\"\n        },\n        {\n          \"ad\": \"baskili\",\n          \"label_tr\": \"Baskılı\"\n        }\n      ]\n    }\n  },\n  \"marj\": {\n    \"asgari_adet\": \"1\",\n    \"kademeler\": [\n      {\n        \"alt\": \"1\",\n        \"oran\": \"0\",\n        \"ust\": null\n      }\n    ]\n  },\n  \"parametreler\": {\n    \"banyo_havlusu_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"7\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Banyo havlusu kenar dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"baski_firesi\": {\n      \"aciklama\": \"zincir: (kumaş + önceki fireler) × oran; yalnız baskılı kumaşta\",\n      \"birim\": \"oran\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.035\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Baskı firesi\",\n      \"para_birimi\": null,\n      \"tur\": \"oran\"\n    },\n    \"bornoz_sal_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"45\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Bornoz şal yaka dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"dokuma_etiket\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1.5\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Dokuma etiket\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"el_havlusu_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"4\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"El havlusu kenar dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"eur_tl_kuru\": {\n      \"birim\": \"TRY/EUR\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"55\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"EUR/TL kuru\",\n      \"para_birimi\": null,\n      \"tur\": \"sabit\"\n    },\n    \"genel_gider_orani\": {\n      \"aciklama\": \"ara toplam × oran\",\n      \"birim\": \"oran\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.08\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Genel gider oranı\",\n      \"para_birimi\": null,\n      \"tur\": \"oran\"\n    },\n    \"koli\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"2\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Ambalaj kolisi (adet payı)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"muslin_baskili\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"133\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Müslin · Çift kat · 145 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"muslin_boyali\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"109\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Müslin · Çift kat · 145 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"nakis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"12\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Nakış\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"paket_aski\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"9\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Askı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"paket_kutu\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"18\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Kutu\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"paket_poset\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"3\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Standart poşet\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"pamuk_baskili\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"318\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk · 16/1 OE · 400 GSM — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"pamuk_boyali\": {\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"272\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk · 16/1 OE · 400 GSM — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"ranforce_baskili\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"113\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Ranforce · 157 TC · 240 cm en · 125 GSM — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"ranforce_boyali\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"92\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Ranforce · 157 TC · 240 cm en · 125 GSM — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_cizgili_baskili\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"164\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · 1 cm Çizgili · 212 TC · 240 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_cizgili_boyali\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"132\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · 1 cm Çizgili · 212 TC · 240 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_duz_baskili\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"156\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · Düz · 212 TC · 240 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_duz_boyali\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"128\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · Düz · 212 TC · 240 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"satis_yuvarlama\": {\n      \"birim\": \"EUR\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.01\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Satış fiyatı yuvarlama (yukarı)\",\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"sabit\"\n    },\n    \"waffle_baskili\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"178\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Waffle · 310 GSM · 155 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"waffle_boyali\": {\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"149\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Waffle · 310 GSM · 155 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    }\n  },\n  \"urunler\": {\n    \"banyo_havlusu\": {\n      \"alanlar\": [],\n      \"kalemler\": [\n        {\n          \"deger\": \"banyo_havlusu_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"havlu\",\n      \"label_tr\": \"Banyo havlusu\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"bornoz_sal_yaka\": {\n      \"alanlar\": [],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"2.45\",\n          \"label_tr\": \"Standart kumaş tüketimi\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Kumaş ağırlığı\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"bornoz_sal_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"bornoz\",\n      \"label_tr\": \"Bornoz şal yaka\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"el_havlusu\": {\n      \"alanlar\": [],\n      \"kalemler\": [\n        {\n          \"deger\": \"el_havlusu_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"havlu\",\n      \"label_tr\": \"El havlusu\",\n      \"para_birimi\": \"EUR\"\n    }\n  }\n}\n";
+window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYILAR UYDURMA\",\n  \"bicim\": \"fiyat-deneme-katalog\",\n  \"bicim_surumu\": 1,\n  \"bloklar\": {},\n  \"dugumler\": {\n    \"bos\": {\n      \"cocuklar\": [],\n      \"label_en\": \"Unused\",\n      \"label_tr\": \"Kullanılmıyor\",\n      \"satirlar\": [\n        {\n          \"birim\": \"adet\",\n          \"ifade\": \"1\",\n          \"kalem\": \"yer_tutucu\",\n          \"kapsam\": \"birim_basi\",\n          \"para_birimi\": \"EUR\"\n        }\n      ],\n      \"tur\": \"secenek\"\n    },\n    \"urun\": {\n      \"cocuklar\": [\n        \"bos\"\n      ],\n      \"fiyat_birimi\": \"adet\",\n      \"label_en\": \"Product\",\n      \"label_tr\": \"Ürün\",\n      \"tur\": \"soru\"\n    }\n  },\n  \"durum\": \"taslak\",\n  \"genel_ayarlar\": {\n    \"kur\": \"eur_tl_kuru\",\n    \"parametreler\": [\n      \"eur_tl_kuru\",\n      \"genel_gider_orani\",\n      \"satis_yuvarlama\"\n    ],\n    \"yuvarlama_adimi\": \"satis_yuvarlama\"\n  },\n  \"katalog_surumu\": 0,\n  \"kategoriler\": {\n    \"bebek_giyim\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"gsm\",\n          \"birim\": \"g/m2\",\n          \"kumas_ozelligi\": \"gsm\",\n          \"label_tr\": \"GSM\",\n          \"max\": \"200\",\n          \"min\": \"141\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"supreme\"\n          ],\n          \"sutun_alani\": \"kumas_islemi\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"kumas_islemi\",\n          \"label_tr\": \"Kumaş işlemi\",\n          \"secenekler\": [\n            {\n              \"ad\": \"boyali\",\n              \"kalemler\": [],\n              \"label_tr\": \"Boyalı\",\n              \"sutun\": \"boyali\"\n            },\n            {\n              \"ad\": \"baskili\",\n              \"kalemler\": [\n                {\n                  \"bicim\": \"zincir_carpan\",\n                  \"deger\": \"baski_firesi\",\n                  \"kalem\": \"baski_firesi\",\n                  \"label_tr\": \"Baskı firesi\",\n                  \"tip\": \"yuzde\"\n                },\n                {\n                  \"deger\": \"baski_sablonu\",\n                  \"kalem\": \"baski_sablonu\",\n                  \"label_tr\": \"Baskı şablonu / klişe\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Baskılı\",\n              \"sutun\": \"baskili\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"nakis\",\n          \"label_tr\": \"Nakış\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"nakis\",\n                  \"kalem\": \"nakis\",\n                  \"label_tr\": \"Nakış\",\n                  \"tip\": \"adet_basina\"\n                },\n                {\n                  \"deger\": \"nakis_programi\",\n                  \"kalem\": \"nakis_programi\",\n                  \"label_tr\": \"Nakış programı (punch)\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"kutu\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_kutu\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Kutulu\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"hat_kurulumu\",\n          \"kalem\": \"hat_kurulumu\",\n          \"label_tr\": \"Konfeksiyon hattı kurulumu\",\n          \"parti_buyuklugu\": \"hat_partisi\",\n          \"tip\": \"parti_basina\"\n        },\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Bebek giyim\"\n    },\n    \"bebek_tekstili\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"en_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"En\",\n          \"max\": \"119\",\n          \"min\": \"40\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"boy_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"Boy\",\n          \"max\": \"141\",\n          \"min\": \"40\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"muslin\",\n            \"waffle\"\n          ],\n          \"sutun_alani\": \"kumas_islemi\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"kumas_islemi\",\n          \"label_tr\": \"Kumaş işlemi\",\n          \"secenekler\": [\n            {\n              \"ad\": \"boyali\",\n              \"kalemler\": [],\n              \"label_tr\": \"Boyalı\",\n              \"sutun\": \"boyali\"\n            },\n            {\n              \"ad\": \"baskili\",\n              \"kalemler\": [\n                {\n                  \"bicim\": \"zincir_carpan\",\n                  \"deger\": \"baski_firesi\",\n                  \"kalem\": \"baski_firesi\",\n                  \"label_tr\": \"Baskı firesi\",\n                  \"tip\": \"yuzde\"\n                },\n                {\n                  \"deger\": \"baski_sablonu\",\n                  \"kalem\": \"baski_sablonu\",\n                  \"label_tr\": \"Baskı şablonu / klişe\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Baskılı\",\n              \"sutun\": \"baskili\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"nakis\",\n          \"label_tr\": \"Nakış\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"nakis\",\n                  \"kalem\": \"nakis\",\n                  \"label_tr\": \"Nakış\",\n                  \"tip\": \"adet_basina\"\n                },\n                {\n                  \"deger\": \"nakis_programi\",\n                  \"kalem\": \"nakis_programi\",\n                  \"label_tr\": \"Nakış programı (punch)\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"kutu\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_kutu\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Kutulu\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"parca_kesim_en_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"(en_cm + 2 * 2) * (1 + cekme_orani)\",\n          \"label_tr\": \"Parça: kesim eni (pay + çekme)\"\n        },\n        {\n          \"ad\": \"parca_kesim_boy_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"yukari((boy_cm + 2 * 2) * (1 + cekme_orani), desen_raporu_cm)\",\n          \"label_tr\": \"Parça: kesim boyu (pay + çekme, desen tekrarına yukarı)\"\n        },\n        {\n          \"ad\": \"parca_yan_yana\",\n          \"birim\": \"adet\",\n          \"ifade\": \"asagi(kullanilabilir_en_cm / parca_kesim_en_cm, 1)\",\n          \"label_tr\": \"Parça: kumaş enine sığan parça\"\n        },\n        {\n          \"ad\": \"parca_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"1 * parca_kesim_boy_cm / parca_yan_yana / 100\",\n          \"label_tr\": \"Parça: metraj\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"parca_metraj_m * kumas_eni_cm / 100\",\n          \"label_tr\": \"Kumaş alanı (metraj × kumaş eni)\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Bebek tekstili\"\n    },\n    \"bornoz\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"gsm\",\n          \"birim\": \"g/m2\",\n          \"kumas_ozelligi\": \"gsm\",\n          \"label_tr\": \"GSM\",\n          \"max\": \"645\",\n          \"min\": \"350\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"pamuk\",\n            \"waffle\",\n            \"muslin\"\n          ],\n          \"sutun_alani\": \"kumas_islemi\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"kumas_islemi\",\n          \"label_tr\": \"Kumaş işlemi\",\n          \"secenekler\": [\n            {\n              \"ad\": \"boyali\",\n              \"kalemler\": [],\n              \"label_tr\": \"Boyalı\",\n              \"sutun\": \"boyali\"\n            },\n            {\n              \"ad\": \"baskili\",\n              \"kalemler\": [\n                {\n                  \"bicim\": \"zincir_carpan\",\n                  \"deger\": \"baski_firesi\",\n                  \"kalem\": \"baski_firesi\",\n                  \"label_tr\": \"Baskı firesi\",\n                  \"tip\": \"yuzde\"\n                },\n                {\n                  \"deger\": \"baski_sablonu\",\n                  \"kalem\": \"baski_sablonu\",\n                  \"label_tr\": \"Baskı şablonu / klişe\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Baskılı\",\n              \"sutun\": \"baskili\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"nakis\",\n          \"label_tr\": \"Nakış\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"nakis\",\n                  \"kalem\": \"nakis\",\n                  \"label_tr\": \"Nakış\",\n                  \"tip\": \"adet_basina\"\n                },\n                {\n                  \"deger\": \"nakis_programi\",\n                  \"kalem\": \"nakis_programi\",\n                  \"label_tr\": \"Nakış programı (punch)\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"kutu\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_kutu\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Kutulu\"\n            },\n            {\n              \"ad\": \"aski\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_aski\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Askılı\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Bornoz\"\n    },\n    \"dijital_baski\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"en_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"En\",\n          \"max\": \"200\",\n          \"min\": \"50\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"boy_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"Boy\",\n          \"max\": \"250\",\n          \"min\": \"50\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"gsm\",\n          \"birim\": \"g/m2\",\n          \"kumas_ozelligi\": \"gsm\",\n          \"label_tr\": \"GSM\",\n          \"max\": \"645\",\n          \"min\": \"350\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş (baskıya hazır)\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"pamuk\"\n          ],\n          \"sutun\": \"boyali\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"kutu\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_kutu\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Kutulu\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"en_cm * boy_cm / 10000\",\n          \"label_tr\": \"Parça alanı\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Parça ağırlığı\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"bicim\": \"zincir_carpan\",\n          \"deger\": \"baski_firesi\",\n          \"kalem\": \"baski_firesi\",\n          \"label_tr\": \"Baskı firesi\",\n          \"tip\": \"yuzde\"\n        },\n        {\n          \"ifade\": \"alan_m2 * dijital_baski_m2\",\n          \"kalem\": \"dijital_baski\",\n          \"label_tr\": \"Dijital baskı (m²)\",\n          \"tip\": \"formul\"\n        },\n        {\n          \"deger\": \"dijital_renk_ayari\",\n          \"kalem\": \"renk_ayari\",\n          \"label_tr\": \"Renk ayarı ve numune\",\n          \"tip\": \"siparis_basina\"\n        },\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Dijital baskılı\"\n    },\n    \"havlu\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"en_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"En\",\n          \"max\": \"200\",\n          \"min\": \"20\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"boy_cm\",\n          \"birim\": \"cm\",\n          \"label_tr\": \"Boy\",\n          \"max\": \"250\",\n          \"min\": \"20\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"gsm\",\n          \"birim\": \"g/m2\",\n          \"kumas_ozelligi\": \"gsm\",\n          \"label_tr\": \"GSM\",\n          \"max\": \"645\",\n          \"min\": \"350\",\n          \"tur\": \"sayi\"\n        },\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"pamuk\",\n            \"waffle\"\n          ],\n          \"sutun_alani\": \"kumas_islemi\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"kumas_islemi\",\n          \"label_tr\": \"Kumaş işlemi\",\n          \"secenekler\": [\n            {\n              \"ad\": \"boyali\",\n              \"kalemler\": [],\n              \"label_tr\": \"Boyalı\",\n              \"sutun\": \"boyali\"\n            },\n            {\n              \"ad\": \"baskili\",\n              \"kalemler\": [\n                {\n                  \"bicim\": \"zincir_carpan\",\n                  \"deger\": \"baski_firesi\",\n                  \"kalem\": \"baski_firesi\",\n                  \"label_tr\": \"Baskı firesi\",\n                  \"tip\": \"yuzde\"\n                },\n                {\n                  \"deger\": \"baski_sablonu\",\n                  \"kalem\": \"baski_sablonu\",\n                  \"label_tr\": \"Baskı şablonu / klişe\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Baskılı\",\n              \"sutun\": \"baskili\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"nakis\",\n          \"label_tr\": \"Nakış\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"nakis\",\n                  \"kalem\": \"nakis\",\n                  \"label_tr\": \"Nakış\",\n                  \"tip\": \"adet_basina\"\n                },\n                {\n                  \"deger\": \"nakis_programi\",\n                  \"kalem\": \"nakis_programi\",\n                  \"label_tr\": \"Nakış programı (punch)\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"kutu\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_kutu\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Kutulu\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"en_cm * boy_cm / 10000\",\n          \"label_tr\": \"Parça alanı\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Parça ağırlığı\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Havlu\"\n    },\n    \"nevresim\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"kumas\",\n          \"label_tr\": \"Kumaş\",\n          \"liste\": \"kumaslar\",\n          \"satirlar\": [\n            \"saten_cizgili\",\n            \"saten_duz\",\n            \"ranforce\"\n          ],\n          \"sutun_alani\": \"kumas_islemi\",\n          \"tur\": \"kumas\"\n        },\n        {\n          \"ad\": \"kumas_islemi\",\n          \"label_tr\": \"Kumaş işlemi\",\n          \"secenekler\": [\n            {\n              \"ad\": \"boyali\",\n              \"kalemler\": [],\n              \"label_tr\": \"Boyalı\",\n              \"sutun\": \"boyali\"\n            },\n            {\n              \"ad\": \"baskili\",\n              \"kalemler\": [\n                {\n                  \"bicim\": \"zincir_carpan\",\n                  \"deger\": \"baski_firesi\",\n                  \"kalem\": \"baski_firesi\",\n                  \"label_tr\": \"Baskı firesi\",\n                  \"tip\": \"yuzde\"\n                },\n                {\n                  \"deger\": \"baski_sablonu\",\n                  \"kalem\": \"baski_sablonu\",\n                  \"label_tr\": \"Baskı şablonu / klişe\",\n                  \"tip\": \"siparis_basina\"\n                }\n              ],\n              \"label_tr\": \"Baskılı\",\n              \"sutun\": \"baskili\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"etiket\",\n          \"label_tr\": \"Dokuma etiket\",\n          \"secenekler\": [\n            {\n              \"ad\": \"yok\",\n              \"kalemler\": [],\n              \"label_tr\": \"Yok\"\n            },\n            {\n              \"ad\": \"var\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"dokuma_etiket\",\n                  \"kalem\": \"etiket\",\n                  \"label_tr\": \"Dokuma etiket\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Var\"\n            }\n          ],\n          \"tur\": \"secim\"\n        },\n        {\n          \"ad\": \"paket\",\n          \"label_tr\": \"Paketleme\",\n          \"secenekler\": [\n            {\n              \"ad\": \"poset\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_poset\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Standart poşet\"\n            },\n            {\n              \"ad\": \"canta\",\n              \"kalemler\": [\n                {\n                  \"deger\": \"paket_set_canta\",\n                  \"kalem\": \"paket\",\n                  \"label_tr\": \"Paketleme\",\n                  \"tip\": \"adet_basina\"\n                }\n              ],\n              \"label_tr\": \"Set çantası\"\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"koli\",\n          \"kalem\": \"koli\",\n          \"label_tr\": \"Ambalaj kolisi\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"genel_gider_orani\",\n          \"kalem\": \"genel_gider\",\n          \"label_tr\": \"Genel gider\",\n          \"matrah\": \"ara_toplam\",\n          \"tip\": \"yuzde\"\n        }\n      ],\n      \"label_tr\": \"Nevresim ve yatak tekstili\"\n    }\n  },\n  \"kok\": \"urun\",\n  \"listeler\": {\n    \"kumaslar\": {\n      \"label_tr\": \"Kumaşlar\",\n      \"satirlar\": [\n        {\n          \"ad\": \"pamuk\",\n          \"birim\": \"kg\",\n          \"hucreler\": {\n            \"baskili\": \"pamuk_baskili\",\n            \"boyali\": \"pamuk_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk · 16/1 OE · 400 GSM\",\n          \"ozellikler\": {\n            \"gsm_max\": \"645\",\n            \"gsm_min\": \"350\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"saten_cizgili\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"saten_cizgili_baskili\",\n            \"boyali\": \"saten_cizgili_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Saten · 1 cm Çizgili · 212 TC · 240 cm en\",\n          \"ozellikler\": {\n            \"cekme_orani\": \"0.07\",\n            \"desen_raporu_cm\": \"2\",\n            \"kullanilabilir_en_cm\": \"234\",\n            \"kumas_eni_cm\": \"240\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"saten_duz\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"saten_duz_baskili\",\n            \"boyali\": \"saten_duz_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Saten · Düz · 212 TC · 240 cm en\",\n          \"ozellikler\": {\n            \"cekme_orani\": \"0.07\",\n            \"desen_raporu_cm\": \"1\",\n            \"kullanilabilir_en_cm\": \"234\",\n            \"kumas_eni_cm\": \"240\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"ranforce\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"ranforce_baskili\",\n            \"boyali\": \"ranforce_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Ranforce · 157 TC · 240 cm en · 125 GSM\",\n          \"ozellikler\": {\n            \"cekme_orani\": \"0.049\",\n            \"desen_raporu_cm\": \"1\",\n            \"kullanilabilir_en_cm\": \"234\",\n            \"kumas_eni_cm\": \"240\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"waffle\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"waffle_baskili\",\n            \"boyali\": \"waffle_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Waffle · 310 GSM · 155 cm en\",\n          \"ozellikler\": {\n            \"cekme_orani\": \"0.039\",\n            \"desen_raporu_cm\": \"1\",\n            \"kullanilabilir_en_cm\": \"151\",\n            \"kumas_eni_cm\": \"155\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"muslin\",\n          \"birim\": \"metre\",\n          \"hucreler\": {\n            \"baskili\": \"muslin_baskili\",\n            \"boyali\": \"muslin_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Müslin · Çift kat · 145 cm en\",\n          \"ozellikler\": {\n            \"cekme_orani\": \"0.049\",\n            \"desen_raporu_cm\": \"1\",\n            \"kullanilabilir_en_cm\": \"141\",\n            \"kumas_eni_cm\": \"145\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"supreme\",\n          \"birim\": \"kg\",\n          \"hucreler\": {\n            \"baskili\": \"supreme_baskili\",\n            \"boyali\": \"supreme_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Süprem · 30/1 Penye · 161 GSM\",\n          \"ozellikler\": {\n            \"gsm_max\": \"200\",\n            \"gsm_min\": \"141\"\n          },\n          \"para_birimi\": \"TRY\"\n        },\n        {\n          \"ad\": \"ribana\",\n          \"birim\": \"kg\",\n          \"hucreler\": {\n            \"baskili\": \"ribana_baskili\",\n            \"boyali\": \"ribana_boyali\"\n          },\n          \"label_tr\": \"%100 Pamuk Ribana · 1×1 · 219 GSM\",\n          \"para_birimi\": \"TRY\"\n        }\n      ],\n      \"sutunlar\": [\n        {\n          \"ad\": \"boyali\",\n          \"label_tr\": \"Boyalı\"\n        },\n        {\n          \"ad\": \"baskili\",\n          \"label_tr\": \"Baskılı\"\n        }\n      ]\n    }\n  },\n  \"marj\": {\n    \"asgari_adet\": \"1\",\n    \"kademeler\": [\n      {\n        \"alt\": \"1\",\n        \"oran\": \"0\",\n        \"ust\": null\n      }\n    ]\n  },\n  \"parametreler\": {\n    \"banyo_havlusu_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"7\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Banyo havlusu kenar dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"baski_firesi\": {\n      \"aciklama\": \"zincir: (kumaş + önceki fireler) × oran; yalnız baskılı kumaşta\",\n      \"birim\": \"oran\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.035\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Baskı firesi\",\n      \"para_birimi\": null,\n      \"tur\": \"oran\"\n    },\n    \"baski_sablonu\": {\n      \"birim\": \"siparis\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"3000\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Baskı şablonu / klişe\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"bebek_battaniye_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"10\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Bebek battaniyesi biye dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"bornoz_kapuson_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"54\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Bornoz kapüşonlu dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"bornoz_kimono_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"42\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Bornoz kimono yaka dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"bornoz_sal_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"45\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Bornoz şal yaka dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"carsaf_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"9\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Çarşaf dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"citcit\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.77\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Çıtçıt (tane)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"dijital_baski_m2\": {\n      \"birim\": \"m2\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"85\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Dijital baskı (m² başına)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"dijital_renk_ayari\": {\n      \"birim\": \"siparis\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1000\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Dijital baskı renk ayarı ve numune\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"dokuma_etiket\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1.5\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Dokuma etiket\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"el_havlusu_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"4\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"El havlusu kenar dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"eur_tl_kuru\": {\n      \"birim\": \"TRY/EUR\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"55\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"EUR/TL kuru\",\n      \"para_birimi\": null,\n      \"tur\": \"sabit\"\n    },\n    \"genel_gider_orani\": {\n      \"aciklama\": \"ara toplam × oran\",\n      \"birim\": \"oran\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.08\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Genel gider oranı\",\n      \"para_birimi\": null,\n      \"tur\": \"oran\"\n    },\n    \"hat_kurulumu\": {\n      \"birim\": \"parti\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1200\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Konfeksiyon hattı kurulumu (parti başına)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"hat_partisi\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"500\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Konfeksiyon partisi (adet)\",\n      \"para_birimi\": null,\n      \"tur\": \"sabit\"\n    },\n    \"koli\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"2\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Ambalaj kolisi (adet payı)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"muslin_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"133\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Müslin · Çift kat · 145 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"muslin_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"109\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Müslin · Çift kat · 145 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"muslin_ortu_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"6\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Müslin örtü kenar dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"nakis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"12\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Nakış\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"nakis_programi\": {\n      \"birim\": \"siparis\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"1495\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Nakış programı (punch)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"nevresim_kapama\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"3\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Nevresim kapaması (düğme / çıtçıt)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"nevresim_kilifi_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"18\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Nevresim kılıfı dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"nevresim_takimi_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"38\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Nevresim takımı dikişi (bütün parçalar)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"paket_aski\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"9\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Askı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"paket_kutu\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"18\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Kutu\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"paket_poset\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"3\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Standart poşet\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"paket_set_canta\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"22\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Set çantası (PVC)\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"pamuk_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"318\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk · 16/1 OE · 400 GSM — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"pamuk_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"272\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk · 16/1 OE · 400 GSM — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"plaj_havlusu_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"8\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Plaj havlusu kenar dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"ranforce_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"113\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Ranforce · 157 TC · 240 cm en · 125 GSM — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"ranforce_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"92\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Ranforce · 157 TC · 240 cm en · 125 GSM — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"ribana_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"325\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Ribana · 1×1 · 219 GSM — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"ribana_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"247\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Ribana · 1×1 · 219 GSM — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_cizgili_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"164\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · 1 cm Çizgili · 212 TC · 240 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_cizgili_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"132\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · 1 cm Çizgili · 212 TC · 240 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_duz_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"156\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · Düz · 212 TC · 240 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"saten_duz_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"128\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Saten · Düz · 212 TC · 240 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"satis_yuvarlama\": {\n      \"birim\": \"EUR\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"0.01\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Satış fiyatı yuvarlama (yukarı)\",\n      \"para_birimi\": \"EUR\",\n      \"tur\": \"sabit\"\n    },\n    \"supreme_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"281\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Süprem · 30/1 Penye · 161 GSM — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"supreme_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"kg\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"236\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Süprem · 30/1 Penye · 161 GSM — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"tulum_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"24\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Bebek tulum dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"waffle_baskili\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"178\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Waffle · 310 GSM · 155 cm en — Baskılı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"waffle_boyali\": {\n      \"bayat_gun\": 365,\n      \"birim\": \"metre\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"149\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"%100 Pamuk Waffle · 310 GSM · 155 cm en — Boyalı\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"fiyat\"\n    },\n    \"yastik_kilifi_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"4\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Yastık kılıfı dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    },\n    \"zibin_dikis\": {\n      \"birim\": \"adet\",\n      \"degerler\": [\n        {\n          \"alinma_tarihi\": \"2026-10-01\",\n          \"deger\": \"14\",\n          \"giren\": \"örnek\",\n          \"giris_zamani\": \"2026-10-01T09:00:00Z\",\n          \"kaynak\": \"uydurma örnek\",\n          \"yururluk\": \"2026-10-01\"\n        }\n      ],\n      \"label_tr\": \"Bebek zıbın dikişi\",\n      \"para_birimi\": \"TRY\",\n      \"tur\": \"sabit\"\n    }\n  },\n  \"urunler\": {\n    \"banyo_havlusu\": {\n      \"alanlar\": [],\n      \"kalemler\": [\n        {\n          \"deger\": \"banyo_havlusu_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"havlu\",\n      \"label_tr\": \"Banyo havlusu\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"bebek_battaniye\": {\n      \"alanlar\": [],\n      \"kalemler\": [\n        {\n          \"deger\": \"bebek_battaniye_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"bebek_tekstili\",\n      \"label_tr\": \"Bebek battaniyesi\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"bebek_tulum\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"beden\",\n          \"label_tr\": \"Beden\",\n          \"secenekler\": [\n            {\n              \"ad\": \"ay_0_3\",\n              \"label_tr\": \"0–3 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.29\",\n                \"citcit_adet\": \"7\",\n                \"kesim_verimi\": \"0.77\",\n                \"ribana_m2\": \"0.039\"\n              }\n            },\n            {\n              \"ad\": \"ay_3_6\",\n              \"label_tr\": \"3–6 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.405\",\n                \"citcit_adet\": \"7\",\n                \"kesim_verimi\": \"0.77\",\n                \"ribana_m2\": \"0.049\"\n              }\n            },\n            {\n              \"ad\": \"ay_6_12\",\n              \"label_tr\": \"6–12 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.479\",\n                \"citcit_adet\": \"8\",\n                \"kesim_verimi\": \"0.76\",\n                \"ribana_m2\": \"0.049\"\n              }\n            },\n            {\n              \"ad\": \"ay_12_18\",\n              \"label_tr\": \"12–18 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.56\",\n                \"citcit_adet\": \"8\",\n                \"kesim_verimi\": \"0.78\",\n                \"ribana_m2\": \"0.059\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"ana_kumas_m2 / kesim_verimi\",\n          \"label_tr\": \"Ana kumaş (kesim veriminden sonra)\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Ana kumaş ağırlığı\"\n        },\n        {\n          \"ad\": \"ribana_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"ribana_m2 / kesim_verimi * 219 / 1000\",\n          \"label_tr\": \"Ribana ağırlığı (219 GSM)\"\n        },\n        {\n          \"ad\": \"citcit_sayisi\",\n          \"birim\": \"adet\",\n          \"ifade\": \"citcit_adet\",\n          \"label_tr\": \"Çıtçıt sayısı (bedene göre)\"\n        }\n      ],\n      \"dagilim_alani\": \"beden\",\n      \"kalemler\": [\n        {\n          \"deger\": \"tulum_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"ifade\": \"ribana_kg * ribana_boyali\",\n          \"kalem\": \"ribana\",\n          \"label_tr\": \"Ribana (yardımcı kumaş)\",\n          \"tip\": \"formul\"\n        },\n        {\n          \"ifade\": \"citcit_sayisi * citcit\",\n          \"kalem\": \"citcit\",\n          \"label_tr\": \"Çıtçıt\",\n          \"tip\": \"formul\"\n        }\n      ],\n      \"kategori\": \"bebek_giyim\",\n      \"label_tr\": \"Bebek tulum\",\n      \"para_birimi\": \"EUR\",\n      \"tahmini\": true\n    },\n    \"bebek_zibin\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"beden\",\n          \"label_tr\": \"Beden\",\n          \"secenekler\": [\n            {\n              \"ad\": \"ay_0_3\",\n              \"label_tr\": \"0–3 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.17\",\n                \"citcit_adet\": \"3\",\n                \"kesim_verimi\": \"0.82\",\n                \"ribana_m2\": \"0.019\"\n              }\n            },\n            {\n              \"ad\": \"ay_3_6\",\n              \"label_tr\": \"3–6 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.19\",\n                \"citcit_adet\": \"3\",\n                \"kesim_verimi\": \"0.82\",\n                \"ribana_m2\": \"0.019\"\n              }\n            },\n            {\n              \"ad\": \"ay_6_12\",\n              \"label_tr\": \"6–12 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.229\",\n                \"citcit_adet\": \"4\",\n                \"kesim_verimi\": \"0.809\",\n                \"ribana_m2\": \"0.07\"\n              }\n            },\n            {\n              \"ad\": \"ay_12_18\",\n              \"label_tr\": \"12–18 ay\",\n              \"ozellikler\": {\n                \"ana_kumas_m2\": \"0.269\",\n                \"citcit_adet\": \"4\",\n                \"kesim_verimi\": \"0.77\",\n                \"ribana_m2\": \"0.07\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"ana_kumas_m2 / kesim_verimi\",\n          \"label_tr\": \"Ana kumaş (kesim veriminden sonra)\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Ana kumaş ağırlığı\"\n        },\n        {\n          \"ad\": \"ribana_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"ribana_m2 / kesim_verimi * 219 / 1000\",\n          \"label_tr\": \"Ribana ağırlığı (219 GSM)\"\n        },\n        {\n          \"ad\": \"citcit_sayisi\",\n          \"birim\": \"adet\",\n          \"ifade\": \"citcit_adet\",\n          \"label_tr\": \"Çıtçıt sayısı (bedene göre)\"\n        }\n      ],\n      \"dagilim_alani\": \"beden\",\n      \"kalemler\": [\n        {\n          \"deger\": \"zibin_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"ifade\": \"ribana_kg * ribana_boyali\",\n          \"kalem\": \"ribana\",\n          \"label_tr\": \"Ribana (yardımcı kumaş)\",\n          \"tip\": \"formul\"\n        },\n        {\n          \"ifade\": \"citcit_sayisi * citcit\",\n          \"kalem\": \"citcit\",\n          \"label_tr\": \"Çıtçıt\",\n          \"tip\": \"formul\"\n        }\n      ],\n      \"kategori\": \"bebek_giyim\",\n      \"label_tr\": \"Bebek zıbın\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"bornoz_kapusonlu\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"beden\",\n          \"label_tr\": \"Beden\",\n          \"secenekler\": [\n            {\n              \"ad\": \"s\",\n              \"label_tr\": \"S\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.31\",\n                \"kapuson_m2\": \"0.219\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.91\",\n                \"kol_m2\": \"0.379\",\n                \"yaka_m2\": \"0.10\"\n              }\n            },\n            {\n              \"ad\": \"m\",\n              \"label_tr\": \"M\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.42\",\n                \"kapuson_m2\": \"0.239\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.91\",\n                \"kol_m2\": \"0.419\",\n                \"yaka_m2\": \"0.109\"\n              }\n            },\n            {\n              \"ad\": \"l\",\n              \"label_tr\": \"L\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.56\",\n                \"kapuson_m2\": \"0.259\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.849\",\n                \"kol_m2\": \"0.459\",\n                \"yaka_m2\": \"0.14\"\n              }\n            },\n            {\n              \"ad\": \"xl\",\n              \"label_tr\": \"XL\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.69\",\n                \"kapuson_m2\": \"0.28\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.84\",\n                \"kol_m2\": \"0.50\",\n                \"yaka_m2\": \"0.129\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"net_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"govde_m2 + kol_m2 + yaka_m2 + cep_m2 + kemer_m2 + kapuson_m2\",\n          \"label_tr\": \"Net kumaş (bileşenler toplamı)\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"net_m2 / kesim_verimi\",\n          \"label_tr\": \"Brüt kumaş (kesim veriminden sonra)\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Kumaş ağırlığı\"\n        }\n      ],\n      \"dagilim_alani\": \"beden\",\n      \"kalemler\": [\n        {\n          \"deger\": \"bornoz_kapuson_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"bornoz\",\n      \"label_tr\": \"Bornoz kapüşonlu\",\n      \"para_birimi\": \"EUR\",\n      \"tahmini\": true\n    },\n    \"bornoz_kimono_yaka\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"beden\",\n          \"label_tr\": \"Beden\",\n          \"secenekler\": [\n            {\n              \"ad\": \"s\",\n              \"label_tr\": \"S\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.28\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.889\",\n                \"kol_m2\": \"0.54\",\n                \"yaka_m2\": \"0.18\"\n              }\n            },\n            {\n              \"ad\": \"m\",\n              \"label_tr\": \"M\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.39\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.889\",\n                \"kol_m2\": \"0.439\",\n                \"yaka_m2\": \"0.20\"\n              }\n            },\n            {\n              \"ad\": \"l\",\n              \"label_tr\": \"L\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.54\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.88\",\n                \"kol_m2\": \"0.479\",\n                \"yaka_m2\": \"0.219\"\n              }\n            },\n            {\n              \"ad\": \"xl\",\n              \"label_tr\": \"XL\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.71\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.87\",\n                \"kol_m2\": \"0.55\",\n                \"yaka_m2\": \"0.239\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"net_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"govde_m2 + kol_m2 + yaka_m2 + cep_m2 + kemer_m2\",\n          \"label_tr\": \"Net kumaş (bileşenler toplamı)\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"net_m2 / kesim_verimi\",\n          \"label_tr\": \"Brüt kumaş (kesim veriminden sonra)\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Kumaş ağırlığı\"\n        }\n      ],\n      \"dagilim_alani\": \"beden\",\n      \"kalemler\": [\n        {\n          \"deger\": \"bornoz_kimono_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"bornoz\",\n      \"label_tr\": \"Bornoz kimono yaka\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"bornoz_sal_yaka\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"beden\",\n          \"label_tr\": \"Beden\",\n          \"secenekler\": [\n            {\n              \"ad\": \"s\",\n              \"label_tr\": \"S\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.31\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.88\",\n                \"kol_m2\": \"0.379\",\n                \"yaka_m2\": \"0.299\"\n              }\n            },\n            {\n              \"ad\": \"m\",\n              \"label_tr\": \"M\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.42\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.88\",\n                \"kol_m2\": \"0.419\",\n                \"yaka_m2\": \"0.319\"\n              }\n            },\n            {\n              \"ad\": \"l\",\n              \"label_tr\": \"L\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.56\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.87\",\n                \"kol_m2\": \"0.459\",\n                \"yaka_m2\": \"0.29\"\n              }\n            },\n            {\n              \"ad\": \"xl\",\n              \"label_tr\": \"XL\",\n              \"ozellikler\": {\n                \"cep_m2\": \"0.059\",\n                \"govde_m2\": \"1.69\",\n                \"kemer_m2\": \"0.14\",\n                \"kesim_verimi\": \"0.91\",\n                \"kol_m2\": \"0.50\",\n                \"yaka_m2\": \"0.359\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"net_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"govde_m2 + kol_m2 + yaka_m2 + cep_m2 + kemer_m2\",\n          \"label_tr\": \"Net kumaş (bileşenler toplamı)\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"net_m2 / kesim_verimi\",\n          \"label_tr\": \"Brüt kumaş (kesim veriminden sonra)\"\n        },\n        {\n          \"ad\": \"agirlik_kg\",\n          \"birim\": \"kg\",\n          \"ifade\": \"alan_m2 * gsm / 1000\",\n          \"label_tr\": \"Kumaş ağırlığı\"\n        }\n      ],\n      \"dagilim_alani\": \"beden\",\n      \"kalemler\": [\n        {\n          \"deger\": \"bornoz_sal_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"bornoz\",\n      \"label_tr\": \"Bornoz şal yaka\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"carsaf\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"boyut\",\n          \"label_tr\": \"Boyut\",\n          \"secenekler\": [\n            {\n              \"ad\": \"tek\",\n              \"label_tr\": \"Tek kişilik\",\n              \"ozellikler\": {\n                \"carsaf_boy_cm\": \"240\",\n                \"carsaf_en_cm\": \"161\",\n                \"dikis_payi_cm\": \"2\"\n              }\n            },\n            {\n              \"ad\": \"cift\",\n              \"label_tr\": \"Çift kişilik\",\n              \"ozellikler\": {\n                \"carsaf_boy_cm\": \"250\",\n                \"carsaf_en_cm\": \"209\",\n                \"dikis_payi_cm\": \"2\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"carsaf_kesim_en_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"(carsaf_en_cm + 2 * dikis_payi_cm) * (1 + cekme_orani)\",\n          \"label_tr\": \"Çarşaf: kesim eni (pay + çekme)\"\n        },\n        {\n          \"ad\": \"carsaf_kesim_boy_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"yukari((carsaf_boy_cm + 2 * dikis_payi_cm) * (1 + cekme_orani), desen_raporu_cm)\",\n          \"label_tr\": \"Çarşaf: kesim boyu (pay + çekme, desen tekrarına yukarı)\"\n        },\n        {\n          \"ad\": \"carsaf_yan_yana\",\n          \"birim\": \"adet\",\n          \"ifade\": \"asagi(kullanilabilir_en_cm / carsaf_kesim_en_cm, 1)\",\n          \"label_tr\": \"Çarşaf: kumaş enine sığan parça\"\n        },\n        {\n          \"ad\": \"carsaf_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"1 * carsaf_kesim_boy_cm / carsaf_yan_yana / 100\",\n          \"label_tr\": \"Çarşaf: metraj\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"carsaf_metraj_m * kumas_eni_cm / 100\",\n          \"label_tr\": \"Kumaş alanı (metraj × kumaş eni)\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"carsaf_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"nevresim\",\n      \"label_tr\": \"Çarşaf\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"el_havlusu\": {\n      \"alanlar\": [],\n      \"kalemler\": [\n        {\n          \"deger\": \"el_havlusu_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"havlu\",\n      \"label_tr\": \"El havlusu\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"muslin_ortu\": {\n      \"alanlar\": [],\n      \"kalemler\": [\n        {\n          \"deger\": \"muslin_ortu_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"bebek_tekstili\",\n      \"label_tr\": \"Müslin örtü\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"nevresim_kilifi\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"boyut\",\n          \"label_tr\": \"Boyut\",\n          \"secenekler\": [\n            {\n              \"ad\": \"tek\",\n              \"label_tr\": \"Tek kişilik\",\n              \"ozellikler\": {\n                \"dikis_payi_cm\": \"2\",\n                \"nevresim_boy_cm\": \"219\",\n                \"nevresim_en_cm\": \"161\"\n              }\n            },\n            {\n              \"ad\": \"cift\",\n              \"label_tr\": \"Çift kişilik\",\n              \"ozellikler\": {\n                \"dikis_payi_cm\": \"2\",\n                \"nevresim_boy_cm\": \"219\",\n                \"nevresim_en_cm\": \"200\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"nevresim_kesim_en_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"(nevresim_en_cm + 2 * dikis_payi_cm) * (1 + cekme_orani)\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): kesim eni (pay + çekme)\"\n        },\n        {\n          \"ad\": \"nevresim_kesim_boy_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"yukari((nevresim_boy_cm + 2 * dikis_payi_cm) * (1 + cekme_orani), desen_raporu_cm)\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): kesim boyu (pay + çekme, desen tekrarına yukarı)\"\n        },\n        {\n          \"ad\": \"nevresim_yan_yana\",\n          \"birim\": \"adet\",\n          \"ifade\": \"asagi(kullanilabilir_en_cm / nevresim_kesim_en_cm, 1)\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): kumaş enine sığan parça\"\n        },\n        {\n          \"ad\": \"nevresim_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"2 * nevresim_kesim_boy_cm / nevresim_yan_yana / 100\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): metraj\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"nevresim_metraj_m * kumas_eni_cm / 100\",\n          \"label_tr\": \"Kumaş alanı (metraj × kumaş eni)\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"nevresim_kilifi_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"nevresim_kapama\",\n          \"kalem\": \"kapama\",\n          \"label_tr\": \"Nevresim kapaması\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"nevresim\",\n      \"label_tr\": \"Nevresim kılıfı\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"nevresim_takimi\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"boyut\",\n          \"label_tr\": \"Boyut\",\n          \"secenekler\": [\n            {\n              \"ad\": \"tek\",\n              \"label_tr\": \"Tek kişilik\",\n              \"ozellikler\": {\n                \"carsaf_boy_cm\": \"240\",\n                \"carsaf_en_cm\": \"161\",\n                \"dikis_payi_cm\": \"2\",\n                \"nevresim_boy_cm\": \"219\",\n                \"nevresim_en_cm\": \"161\",\n                \"yastik_adet\": \"1\",\n                \"yastik_boy_cm\": \"70\",\n                \"yastik_en_cm\": \"50\"\n              }\n            },\n            {\n              \"ad\": \"cift\",\n              \"label_tr\": \"Çift kişilik\",\n              \"ozellikler\": {\n                \"carsaf_boy_cm\": \"250\",\n                \"carsaf_en_cm\": \"209\",\n                \"dikis_payi_cm\": \"2\",\n                \"nevresim_boy_cm\": \"219\",\n                \"nevresim_en_cm\": \"200\",\n                \"yastik_adet\": \"2\",\n                \"yastik_boy_cm\": \"70\",\n                \"yastik_en_cm\": \"50\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"nevresim_kesim_en_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"(nevresim_en_cm + 2 * dikis_payi_cm) * (1 + cekme_orani)\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): kesim eni (pay + çekme)\"\n        },\n        {\n          \"ad\": \"nevresim_kesim_boy_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"yukari((nevresim_boy_cm + 2 * dikis_payi_cm) * (1 + cekme_orani), desen_raporu_cm)\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): kesim boyu (pay + çekme, desen tekrarına yukarı)\"\n        },\n        {\n          \"ad\": \"nevresim_yan_yana\",\n          \"birim\": \"adet\",\n          \"ifade\": \"asagi(kullanilabilir_en_cm / nevresim_kesim_en_cm, 1)\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): kumaş enine sığan parça\"\n        },\n        {\n          \"ad\": \"nevresim_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"2 * nevresim_kesim_boy_cm / nevresim_yan_yana / 100\",\n          \"label_tr\": \"Nevresim kılıfı (2 yüz): metraj\"\n        },\n        {\n          \"ad\": \"carsaf_kesim_en_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"(carsaf_en_cm + 2 * dikis_payi_cm) * (1 + cekme_orani)\",\n          \"label_tr\": \"Çarşaf: kesim eni (pay + çekme)\"\n        },\n        {\n          \"ad\": \"carsaf_kesim_boy_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"yukari((carsaf_boy_cm + 2 * dikis_payi_cm) * (1 + cekme_orani), desen_raporu_cm)\",\n          \"label_tr\": \"Çarşaf: kesim boyu (pay + çekme, desen tekrarına yukarı)\"\n        },\n        {\n          \"ad\": \"carsaf_yan_yana\",\n          \"birim\": \"adet\",\n          \"ifade\": \"asagi(kullanilabilir_en_cm / carsaf_kesim_en_cm, 1)\",\n          \"label_tr\": \"Çarşaf: kumaş enine sığan parça\"\n        },\n        {\n          \"ad\": \"carsaf_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"1 * carsaf_kesim_boy_cm / carsaf_yan_yana / 100\",\n          \"label_tr\": \"Çarşaf: metraj\"\n        },\n        {\n          \"ad\": \"yastik_kesim_en_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"(yastik_en_cm + 2 * dikis_payi_cm) * (1 + cekme_orani)\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): kesim eni (pay + çekme)\"\n        },\n        {\n          \"ad\": \"yastik_kesim_boy_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"yukari((yastik_boy_cm + 2 * dikis_payi_cm) * (1 + cekme_orani), desen_raporu_cm)\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): kesim boyu (pay + çekme, desen tekrarına yukarı)\"\n        },\n        {\n          \"ad\": \"yastik_yan_yana\",\n          \"birim\": \"adet\",\n          \"ifade\": \"asagi(kullanilabilir_en_cm / yastik_kesim_en_cm, 1)\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): kumaş enine sığan parça\"\n        },\n        {\n          \"ad\": \"yastik_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"2 * yastik_kesim_boy_cm / yastik_yan_yana / 100\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): metraj\"\n        },\n        {\n          \"ad\": \"takim_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"nevresim_metraj_m + carsaf_metraj_m + yastik_adet * yastik_metraj_m\",\n          \"label_tr\": \"Takım metrajı (parçalar toplamı)\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"takim_metraj_m * kumas_eni_cm / 100\",\n          \"label_tr\": \"Kumaş alanı (metraj × kumaş eni)\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"nevresim_takimi_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        },\n        {\n          \"deger\": \"nevresim_kapama\",\n          \"kalem\": \"kapama\",\n          \"label_tr\": \"Nevresim kapaması\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"nevresim\",\n      \"label_tr\": \"Nevresim takımı\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"plaj_havlusu\": {\n      \"alanlar\": [],\n      \"kalemler\": [\n        {\n          \"deger\": \"plaj_havlusu_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"dijital_baski\",\n      \"label_tr\": \"Plaj havlusu (dijital baskılı)\",\n      \"para_birimi\": \"EUR\"\n    },\n    \"yastik_kilifi\": {\n      \"alanlar\": [\n        {\n          \"ad\": \"boyut\",\n          \"label_tr\": \"Boyut\",\n          \"secenekler\": [\n            {\n              \"ad\": \"standart\",\n              \"label_tr\": \"50×70\",\n              \"ozellikler\": {\n                \"dikis_payi_cm\": \"2\",\n                \"yastik_boy_cm\": \"70\",\n                \"yastik_en_cm\": \"50\"\n              }\n            },\n            {\n              \"ad\": \"kare\",\n              \"label_tr\": \"65×65\",\n              \"ozellikler\": {\n                \"dikis_payi_cm\": \"2\",\n                \"yastik_boy_cm\": \"65\",\n                \"yastik_en_cm\": \"65\"\n              }\n            }\n          ],\n          \"tur\": \"secim\"\n        }\n      ],\n      \"ara_degerler\": [\n        {\n          \"ad\": \"yastik_kesim_en_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"(yastik_en_cm + 2 * dikis_payi_cm) * (1 + cekme_orani)\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): kesim eni (pay + çekme)\"\n        },\n        {\n          \"ad\": \"yastik_kesim_boy_cm\",\n          \"birim\": \"cm\",\n          \"ifade\": \"yukari((yastik_boy_cm + 2 * dikis_payi_cm) * (1 + cekme_orani), desen_raporu_cm)\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): kesim boyu (pay + çekme, desen tekrarına yukarı)\"\n        },\n        {\n          \"ad\": \"yastik_yan_yana\",\n          \"birim\": \"adet\",\n          \"ifade\": \"asagi(kullanilabilir_en_cm / yastik_kesim_en_cm, 1)\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): kumaş enine sığan parça\"\n        },\n        {\n          \"ad\": \"yastik_metraj_m\",\n          \"birim\": \"m\",\n          \"ifade\": \"2 * yastik_kesim_boy_cm / yastik_yan_yana / 100\",\n          \"label_tr\": \"Yastık kılıfı (2 yüz): metraj\"\n        },\n        {\n          \"ad\": \"alan_m2\",\n          \"birim\": \"m2\",\n          \"ifade\": \"yastik_metraj_m * kumas_eni_cm / 100\",\n          \"label_tr\": \"Kumaş alanı (metraj × kumaş eni)\"\n        }\n      ],\n      \"kalemler\": [\n        {\n          \"deger\": \"yastik_kilifi_dikis\",\n          \"kalem\": \"dikis\",\n          \"label_tr\": \"Konfeksiyon işçiliği\",\n          \"tip\": \"adet_basina\"\n        }\n      ],\n      \"kategori\": \"nevresim\",\n      \"label_tr\": \"Yastık kılıfı\",\n      \"para_birimi\": \"EUR\"\n    }\n  }\n}\n";
 // Ekranın saf yardımcıları: seçim yolu, yoldaki satırlar ve adlı kurlar, istek kurma, Türkçe
 // iletiler. DOM yok; Node testinde (test/ekran.test.cjs) ve tarayıcıda aynı kod çalışır.
 (function (kok, kur) {
@@ -4832,7 +5178,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     AD_COZULEMEDI: 'Formüldeki ad çözülemedi (yazım hatası mı? kumaş tutarı ve ara toplam formülde okunamaz)',
     KUR_GECERSIZ: 'Kur sıfır ya da negatif olamaz',
     ADET_GECERSIZ: 'Adet sıfırdan büyük olmalı',
-    SIFIRA_BOLME: 'Formülde sıfıra bölme',
+    SIFIRA_BOLME: 'Formülde sıfıra bölme (kesim yerleşiminde parça kumaş enine sığmıyor olabilir)',
     TASMA: 'Tutar sınırı aşıldı',
     ONDALIK_BICIM: 'Sayı biçimi geçersiz',
     ONDALIK_HANE_FAZLA: 'En çok 12 ondalık hane',
@@ -4869,7 +5215,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     ORAN_ACIKLAMA_YOK: 'Oran parametresinin açıklaması boş: fire biçimi (× (1 + oran) mı, ÷ (1 − oran) mı) yazılmalı',
     FORMUL_SOZDIZIMI: 'Formülde sözdizimi hatası',
     FORMUL_GECERSIZ_KARAKTER: 'Formülde geçersiz karakter',
-    FORMUL_BILINMEYEN_FONKSIYON: 'Bilinmeyen fonksiyon (yalnız min, max, yukari, yuvarla)',
+    FORMUL_BILINMEYEN_FONKSIYON: 'Bilinmeyen fonksiyon (yalnız min, max, yukari, asagi, yuvarla)',
     FORMUL_BOS: 'Formül boş',
     FORMUL_UZUN: 'Formül çok uzun (en çok 400 karakter)',
     FORMUL_TOKEN_FAZLA: 'Formül çok uzun (en çok 80 öğe)',
@@ -4904,6 +5250,22 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     KAR_ESASI_GECERSIZ: 'Kâr esası geçersiz (maliyet üzerine ya da satış üzerinden)',
     TEKLIF_BAYAT_FIYAT: 'Eski fiyat var: teklif kaydı alınamaz, önce fiyatı yenileyin',
     TEKLIF_TAHMINI: 'Sarfiyat tahmini (onaylı reçete yok): teklif kaydı alınamaz',
+    EK_GIDER_GECERSIZ: 'Ortak gider payı geçersiz (ad ürün kalemiyle çakışıyor ya da tutar eksi)',
+    DOSYA_BICIM: 'Teklif bilgisi geçersiz',
+    DOSYA_SATIR_YOK: 'Teklifte ürün yok: Seçim ekranından "Teklife ekle" deyin',
+    DOSYA_TESLIM_SEKLI: 'Teslim şekli yalnız EXW ya da FOB',
+    DOSYA_GECERLILIK: 'Geçerlilik tarihi teklif tarihinden önce olamaz',
+    DOSYA_TARIH_UYUSMAZ: 'Ürünün hesap tarihi teklif tarihiyle aynı değil',
+    DOSYA_EK_GIDER_ISTEKTE: 'Ürün isteğinde ortak gider payı var (pay yalnız teklif dosyasında dağıtılır)',
+    DOSYA_ORTAK_GIDER_GECERSIZ: 'Ortak gider geçersiz (tutar sıfırdan büyük, en çok 4 ondalık; ad tekrar etmez)',
+    DOSYA_FOB_MASRAFI_YOK: 'FOB teklif için FOB masrafı (nakliye, gümrük vb.) girilmeli; masraf uydurulmaz',
+    DOSYA_SATIR_FIYAT_YOK: 'Teklifteki bir ürünün fiyatı çıkmıyor',
+    DOSYA_PARA_BIRIMI: 'Teklifteki ürünlerin para birimi aynı olmalı',
+    DOSYA_SATIR_TEKLIF: 'Teklifteki bir ürün teklife giremez (eski fiyat ya da tahmini sarfiyat)',
+    DOSYA_DAGITIM: 'Ortak gider dağıtılamadı',
+    DOSYA_BOZUK: 'Teklif dosyası bozuk ya da elle değiştirilmiş',
+    DOSYA_ONAYSIZ: 'Teklif onaylanmadan müşteri teklifi çıkmaz',
+    ONAY_GECERSIZ: 'Onay geçersiz (onaylayan adı boş ya da tarih teklif tarihi ile geçerlilik arasında değil)',
     KALEM_OZELLIGI_EKSIK: 'Kalemin zorunlu özelliği eksik',
     PARTI_BUYUKLUGU_GECERSIZ: 'Parti büyüklüğü pozitif tam sayı olmalı',
     SECENEK_OZELLIGI_YOK: 'Reçetenin okuduğu özellik seçilen seçenekte tanımlı değil',
@@ -7007,7 +7369,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const { el } = api;
     const t = g.ara_degerler || [];
     const kap = el('div', { sinif: 'kart-ic', 'data-urun-editor': 'ara-degerler' }, el('h3', { metin: 'Ara değerler (formül)' }),
-      el('p', { sinif: 'soluk', metin: 'Sayı alanlarından hesaplanan değerler. Ayrılmış adlar: agirlik_kg (kg kumaş ve kg başına kalem için), alan_m2 (metre kumaş için). Formül: + - * / ve parantez, min max yukari yuvarla.' }));
+      el('p', { sinif: 'soluk', metin: 'Sayı alanlarından hesaplanan değerler. Ayrılmış adlar: agirlik_kg (kg kumaş ve kg başına kalem için), alan_m2 (metre kumaş için). Formül: + - * / ve parantez, min max yukari asagi yuvarla (asagi: pastalda enine sığan parça sayısı).' }));
     t.forEach(function (d, i) {
       const yol = ['ara_degerler', i];
       const gun = function (yama, ac) { uygula(function (x) { return Z().nesneGuncelle(x, yer, yol, yama); }, ac); };
@@ -7104,7 +7466,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const sayilar = alanlar.filter(function (a) { return a.tur === 'sayi'; }).map(function (a) { return a.ad; });
     const aralar = ((kat && kat.ara_degerler) || []).concat(g.ara_degerler || []).map(function (t) { return t.ad; });
     return el('p', { sinif: 'soluk', 'data-yeni-kalem': 'yardim', metin: 'Formül okuyabilir: sayı alanları (' + (sayilar.join(', ') || '—') + '), ara değerler (' + (aralar.join(', ') || '—') +
-      ') ve parametre kısa adları (Tüm fiyatlar\'da). Okuyamaz: kumaş tutarı, ara toplam, seçim ve kumaş alanları; kumaşa ya da ara toplama oran uygulamak için "yüzde" seçeneklerini kullanın. İşlemler: + − * / ( ), min max yukari yuvarla.' });
+      ') ve parametre kısa adları (Tüm fiyatlar\'da). Okuyamaz: kumaş tutarı, ara toplam, seçim ve kumaş alanları; kumaşa ya da ara toplama oran uygulamak için "yüzde" seçeneklerini kullanın. İşlemler: + − * / ( ), min max yukari asagi yuvarla.' });
   }
 
   // kalip: listeden seçim alanının kalem kalıbı (değeri satırın hücresinden gelir; tek, silinmez).
@@ -8120,9 +8482,17 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       api.indir(JSON.stringify(JSON.parse(C.kanonikJson(kayit)), null, 2) + '\n', 'teklif-' + kayit.istek.urun + '-' + kayit.istek.hesap_tarihi + '.json');
       ileti.textContent = 'Teklif kaydı indirildi (özet ' + api.kisa(kayit.ozet) + '). ' + UYARI;
     };
+    // Faz 3: çok ürünlü teklif taslağına ekler (Teklif sekmesi); aynı engeller geçerli.
+    const teklifeEkle = function () {
+      const TE = kok.KutuTeklifEkrani;
+      if (!TE) return;
+      const sonuc = TE.urunEkle(r.istek);
+      ileti.textContent = sonuc.ileti;
+    };
     ekle(kutu, engel ? el('p', { sinif: 'ileti uyari', 'data-urun-teklif': 'engel', metin: engel }) : null,
       el('div', { sinif: 'dugmeler' },
       el('button', { type: 'button', sinif: 'dugme', metin: 'Tabloyu kopyala (Excel\'e yapıştır)', onclick: function () { kopyala(UA.sekmeli(satirlar, s.para_birimi), ileti); } }),
+      el('button', { type: 'button', sinif: 'dugme', 'data-urun-teklif': 'ekle', title: engel || 'Bu ürünü çok ürünlü teklife ekler (Teklif sekmesi).', disabled: !!engel, metin: 'Teklife ekle', onclick: teklifeEkle }),
       el('button', { type: 'button', sinif: 'dugme ikincil', 'data-urun-teklif': 'indir', title: engel || UYARI, disabled: !!engel, metin: 'Teklif kaydını indir (.json)', onclick: teklifIndir })),
     el('p', { sinif: 'soluk', metin: 'Teklif kaydı: bu hesabın isteği, sonucu ve damgası (CRM\'e aktarım için). ' + UYARI }),
     ileti,
@@ -8152,7 +8522,568 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   kok.KutuUrunEkrani = { kur, ciz, durum: ek };
 })(this);
 
-// Kutu ekranı: katalog aç/kaydet/yedek, sekmeler (Seçim, Parametreler), geri al / yinele, geri bildirim.
+// Teklif sekmesinin saf yardımcıları (Faz 3): teklif taslağı (ürün satırları, teklif bilgileri, ortak
+// giderler) üzerinde girdiyi DEĞİŞTİRMEYEN işlemler, çekirdeğin teklif dosyası girdisinin kurulması, satır
+// açıklamasının katalog etiketlerinden üretilmesi ve müşteri çıktısının sayı biçimi. DOM, saat, depolama
+// yok; Node testinde (test/teklif-ekrani.test.cjs) ve tarayıcıda aynı kod. Kayan nokta YOK.
+(function (kok, kur) {
+  const m = kur();
+  if (typeof module === 'object' && module.exports) module.exports = m;
+  else kok.KutuTeklifArac = m;
+})(this, function () {
+  'use strict';
+
+  const TASLAK_BICIMI = 'fiyat-deneme-kutusu-teklif-taslagi';
+  const TASLAK_SURUMU = 1;
+  const BILGI_ALANLARI = ['teklif_no', 'firma', 'musteri', 'teslim_sekli', 'teslim_yeri', 'gecerlilik_tarihi', 'not'];
+  const kopya = function (x) { return JSON.parse(JSON.stringify(x)); };
+  const etiket = function (x, ad) { return (x && (x.label_tr || x.label_en)) || ad; };
+
+  function bosTaslak() {
+    return { bicim: TASLAK_BICIMI, surum: TASLAK_SURUMU, satirlar: [], ortak_giderler: [], teklif: { teslim_sekli: 'EXW' } };
+  }
+
+  // Depodan okunan taslak biçimce uygun mu (değilse ekran boş taslakla açılır, bozuk kayıt EZİLMEZ).
+  function taslakMi(t) {
+    return !!t && typeof t === 'object' && t.bicim === TASLAK_BICIMI && t.surum === TASLAK_SURUMU &&
+      Array.isArray(t.satirlar) && Array.isArray(t.ortak_giderler) && !!t.teklif && typeof t.teklif === 'object';
+  }
+
+  // Satır açıklaması (müşteriye görünür, teklif sekmesinde düzenlenebilir): ürün adı, sayı alanları birimiyle
+  // ve seçimler, katalog etiketleriyle.
+  function aciklama(acilim, istek) {
+    const parcalar = [];
+    const alanlar = istek.alanlar || {};
+    for (const a of acilim.alanlar || []) {
+      const v = alanlar[a.ad];
+      if (v === undefined || v === '') continue;
+      if (a.tur === 'sayi') { parcalar.push(etiket(a, a.ad) + ' ' + v + (a.birim ? ' ' + String(a.birim).replace(/m2$/, 'm²') : '')); continue; }
+      const s = (a.secenekler || []).find(function (x) { return x.ad === v; });
+      parcalar.push(etiket(a, a.ad) + ': ' + etiket(s, v));
+    }
+    return etiket(acilim, istek.urun) + (parcalar.length ? ' — ' + parcalar.join(', ') : '');
+  }
+
+  function satirEkle(taslak, istek, metin) {
+    const t = kopya(taslak);
+    const i = kopya(istek);
+    delete i.ek_giderler;
+    t.satirlar.push({ istek: i, aciklama: metin });
+    return t;
+  }
+
+  function satirKaldir(taslak, sira) {
+    const t = kopya(taslak);
+    t.satirlar.splice(sira, 1);
+    return t;
+  }
+
+  function aciklamaDegistir(taslak, sira, metin) {
+    const t = kopya(taslak);
+    t.satirlar[sira].aciklama = metin;
+    return t;
+  }
+
+  function bilgiDegistir(taslak, ad, deger) {
+    if (BILGI_ALANLARI.indexOf(ad) === -1) throw new Error('bilinmeyen teklif bilgisi: ' + ad);
+    const t = kopya(taslak);
+    if (deger === '' || deger === null || deger === undefined) delete t.teklif[ad];
+    else t.teklif[ad] = deger;
+    return t;
+  }
+
+  // Ortak gider: ad kendiliğinden (gider_1, gider_2 …; silinenin adı yeniden kullanılmaz sayılır).
+  function giderEkle(taslak, tur) {
+    const t = kopya(taslak);
+    const adlar = new Set(t.ortak_giderler.map(function (g) { return g.ad; }));
+    let n = t.ortak_giderler.length + 1;
+    while (adlar.has('gider_' + n)) n++;
+    t.ortak_giderler.push({ ad: 'gider_' + n, label_tr: tur === 'fob' ? 'FOB masrafı' : 'Ortak gider', tutar: '', tur: tur === 'fob' ? 'fob' : 'genel' });
+    return t;
+  }
+
+  function giderDegistir(taslak, sira, alan, deger) {
+    if (['label_tr', 'tutar', 'tur'].indexOf(alan) === -1) throw new Error('bilinmeyen gider alanı: ' + alan);
+    const t = kopya(taslak);
+    t.ortak_giderler[sira][alan] = deger;
+    return t;
+  }
+
+  function giderKaldir(taslak, sira) {
+    const t = kopya(taslak);
+    t.ortak_giderler.splice(sira, 1);
+    return t;
+  }
+
+  // Çekirdeğin teklif dosyası girdisi: teklif ve bütün satırlar BUGÜNÜN fiyatlarıyla (teklif yalnız bugünün
+  // fiyatıyla kurulur); boş tutarlı gider girdiye girmez (eksik olarak bildirilir).
+  function girdiKur(taslak, bugun) {
+    const teklif = { hesap_tarihi: bugun };
+    for (const ad of BILGI_ALANLARI) if (taslak.teklif[ad] !== undefined && taslak.teklif[ad] !== '') teklif[ad] = taslak.teklif[ad];
+    const eksik = [];
+    const giderler = [];
+    taslak.ortak_giderler.forEach(function (g, i) {
+      const tutar = String(g.tutar || '').trim().replace(',', '.');
+      if (!tutar || !String(g.label_tr || '').trim()) { eksik.push(i); return; }
+      giderler.push({ ad: g.ad, label_tr: String(g.label_tr).trim(), tutar, tur: g.tur });
+    });
+    return {
+      girdi: {
+        teklif,
+        satirlar: taslak.satirlar.map(function (x) { return { istek: Object.assign(kopya(x.istek), { hesap_tarihi: bugun }), aciklama: x.aciklama }; }),
+        ortak_giderler: giderler,
+      },
+      eksik_giderler: eksik,
+    };
+  }
+
+  // Müşteri çıktısı sayı biçimi: virgül; para en az 2, en çok 4 ondalık (sondaki sıfırlar atılır).
+  function paraMetni(metin) {
+    const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(String(metin));
+    if (!m) return String(metin);
+    let kesir = (m[3] || '').replace(/0+$/, '');
+    while (kesir.length < 2) kesir += '0';
+    return m[1] + m[2] + ',' + kesir;
+  }
+
+  function adetMetni(metin) {
+    const m = /^(\d+)(?:\.0*)?$/.exec(String(metin));
+    return m ? m[1] : String(metin);
+  }
+
+  function tarihMetni(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso));
+    return m ? m[3] + '.' + m[2] + '.' + m[1] : String(iso);
+  }
+
+  return { TASLAK_BICIMI, BILGI_ALANLARI, bosTaslak, taslakMi, aciklama, satirEkle, satirKaldir, aciklamaDegistir, bilgiDegistir, giderEkle, giderDegistir, giderKaldir, girdiKur, paraMetni, adetMetni, tarihMetni };
+});
+
+// Teklif deposu (Faz 3): tarayıcıda teklif taslağı ve ONAYLI teklif geçmişi. Veri sınıfı: müşteri adı ve
+// fiyat yalnız bu tarayıcıda (ve indirilen dosyalarda) kalır, hiçbir yere gönderilmez.
+//   taslakOku()            → { durum: 'bos' | 'tamam' | 'bozuk' | 'erisilemez', taslak? }   (ASLA yazmaz)
+//   taslakYaz(taslak)      → çalışma taslağı; tek anahtar, üzerine yazılır (taslaktır)
+//   gecmisListe()          → { dosyalar: [{ anahtar, dosya }], bozuk: [anahtar] }  (yeni tarih önce)
+//   gecmiseEkle(dosya)     → 'eklendi' | 'zaten'; var olan farklı kaydı EZMEZ (TeklifDepoHatasi)
+//   disaAktar() / iceAktar(metin) → geçmişin tamamı tek JSON; içe aktarma yalnız eksikleri ekler
+// Geçmişte her teklif KENDİ anahtarındadır (önek + dosya özeti): oku-ekle-yaz listesi yok, iki sekme aynı
+// anda eklese de biri ötekini silemez (Fable sertleştirme d). Tarayıcı verisi silinirse geçmiş gider:
+// "Geçmişi indir" ile yedek alınır. Kayıt silme yok (denetlenebilirlik).
+(function (kok, kur) {
+  const m = kur();
+  if (typeof module === 'object' && module.exports) module.exports = m;
+  else kok.KutuTeklifDepo = m;
+})(this, function () {
+  'use strict';
+
+  const TASLAK_ANAHTARI = 'fiyat-deneme-kutusu.teklif-taslagi';
+  const GECMIS_ONEKI = 'fiyat-deneme-kutusu.teklif.';
+  const GECMIS_BICIMI = 'fiyat-deneme-kutusu-teklif-gecmisi';
+  const GECMIS_SURUMU = 1;
+
+  function TeklifDepoHatasi(kod, ileti) {
+    this.name = 'TeklifDepoHatasi';
+    this.kod = kod;
+    this.message = ileti || kod;
+  }
+  TeklifDepoHatasi.prototype = Object.create(Error.prototype);
+  TeklifDepoHatasi.prototype.constructor = TeklifDepoHatasi;
+
+  // ls: localStorage benzeri { getItem, setItem, key, length }; C: çekirdek; taslakMi: saf taslak denetimi.
+  function tarayiciBagdastirici(ls, C, taslakMi) {
+    function guvenli(f) {
+      try { return { ok: true, deger: f() }; } catch (e) { return { ok: false, neden: String(e && e.message || e) }; }
+    }
+
+    function taslakOku() {
+      const h = guvenli(function () { return ls.getItem(TASLAK_ANAHTARI); });
+      if (!h.ok) return { durum: 'erisilemez', neden: h.neden };
+      if (h.deger === null || h.deger === undefined) return { durum: 'bos' };
+      let t;
+      try { t = JSON.parse(h.deger); } catch (e) { return { durum: 'bozuk' }; }
+      return taslakMi(t) ? { durum: 'tamam', taslak: t } : { durum: 'bozuk' };
+    }
+
+    function taslakYaz(taslak) {
+      if (!taslakMi(taslak)) throw new TeklifDepoHatasi('GECERSIZ_TASLAK', 'Taslak biçimi geçersiz.');
+      const metin = JSON.stringify(taslak);
+      const h = guvenli(function () { ls.setItem(TASLAK_ANAHTARI, metin); return ls.getItem(TASLAK_ANAHTARI); });
+      if (!h.ok) throw new TeklifDepoHatasi('DEPO_ERISILEMEZ', 'Tarayıcı deposuna yazılamadı: ' + h.neden);
+      if (h.deger !== metin) throw new TeklifDepoHatasi('GERI_OKUMA', 'Yazılan taslak geri okunamadı.');
+    }
+
+    function anahtarlar() {
+      const h = guvenli(function () {
+        const a = [];
+        for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k && k.indexOf(GECMIS_ONEKI) === 0) a.push(k); }
+        return a.sort();
+      });
+      if (!h.ok) throw new TeklifDepoHatasi('DEPO_ERISILEMEZ', 'Tarayıcı deposu okunamadı: ' + h.neden);
+      return h.deger;
+    }
+
+    function gecmisListe() {
+      const dosyalar = [];
+      const bozuk = [];
+      for (const k of anahtarlar()) {
+        let d = null;
+        try { d = JSON.parse(ls.getItem(k)); } catch (e) { d = null; }
+        const den = d ? C.teklifDosyasiDenetle(d) : null;
+        if (!den || !den.gecerli || !den.onayli || GECMIS_ONEKI + d.ozet !== k) { bozuk.push(k); continue; }
+        dosyalar.push({ anahtar: k, dosya: d });
+      }
+      dosyalar.sort(function (a, b) {
+        const x = a.dosya.teklif.hesap_tarihi;
+        const y = b.dosya.teklif.hesap_tarihi;
+        return x < y ? 1 : x > y ? -1 : (a.anahtar < b.anahtar ? -1 : 1);
+      });
+      return { dosyalar, bozuk };
+    }
+
+    function gecmiseEkle(dosya) {
+      const den = C.teklifDosyasiDenetle(dosya);
+      if (!den.gecerli || !den.onayli) throw new TeklifDepoHatasi('ONAYSIZ', 'Geçmişe yalnız onaylı, bozulmamış teklif girer.');
+      const k = GECMIS_ONEKI + dosya.ozet;
+      const metin = C.kanonikJson(dosya);
+      const var_ = guvenli(function () { return ls.getItem(k); });
+      if (!var_.ok) throw new TeklifDepoHatasi('DEPO_ERISILEMEZ', 'Tarayıcı deposu okunamadı: ' + var_.neden);
+      if (var_.deger !== null && var_.deger !== undefined) {
+        if (var_.deger === metin) return 'zaten';
+        throw new TeklifDepoHatasi('VAR_OLAN_EZILMEZ', 'Bu teklif geçmişte başka bir onayla kayıtlı; var olan kayıt ezilmez.');
+      }
+      const h = guvenli(function () { ls.setItem(k, metin); return ls.getItem(k); });
+      if (!h.ok) throw new TeklifDepoHatasi('DEPO_ERISILEMEZ', 'Tarayıcı deposuna yazılamadı (kota dolmuş olabilir): ' + h.neden);
+      if (h.deger !== metin) throw new TeklifDepoHatasi('GERI_OKUMA', 'Yazılan teklif geri okunamadı.');
+      return 'eklendi';
+    }
+
+    function disaAktar() {
+      return JSON.stringify({ bicim: GECMIS_BICIMI, surum: GECMIS_SURUMU, dosyalar: gecmisListe().dosyalar.map(function (x) { return x.dosya; }) }, null, 2) + '\n';
+    }
+
+    function iceAktar(metin) {
+      let g;
+      try { g = JSON.parse(metin); } catch (e) { throw new TeklifDepoHatasi('GECERSIZ_DOSYA', 'Dosya JSON değil.'); }
+      if (!g || g.bicim !== GECMIS_BICIMI || g.surum !== GECMIS_SURUMU || !Array.isArray(g.dosyalar)) throw new TeklifDepoHatasi('GECERSIZ_DOSYA', 'Teklif geçmişi dosyası değil.');
+      const sonuc = { eklenen: 0, zaten: 0, reddedilen: 0 };
+      for (const d of g.dosyalar) {
+        try {
+          if (gecmiseEkle(d) === 'eklendi') sonuc.eklenen++; else sonuc.zaten++;
+        } catch (e) {
+          if (!(e instanceof TeklifDepoHatasi) || e.kod === 'DEPO_ERISILEMEZ') throw e;
+          sonuc.reddedilen++;
+        }
+      }
+      return sonuc;
+    }
+
+    return { taslakOku, taslakYaz, gecmisListe, gecmiseEkle, disaAktar, iceAktar };
+  }
+
+  return { tarayiciBagdastirici, TeklifDepoHatasi, TASLAK_ANAHTARI, GECMIS_ONEKI };
+});
+
+// Teklif sekmesi (Faz 3, kullanıcı kararları 3 Kasım): Seçim'de hesaplanıp "Teklife ekle" denen ürünler,
+// teklif bilgileri (teslim şekli, geçerlilik, müşteri), ortak giderler (satış tutarı oranında dağılır, kâra
+// tabi), isimli onay KAYDI (yetki değil), yazdırılabilir müşteri teklifi (maliyet içermez) ve tarayıcıdaki
+// teklif geçmişi. Hesap ve dağıtım çekirdekte (teklifDosyasiKur); taslak işlemleri saf teklif-arac.js'te.
+// Katalog değiştirmez; taslak ve geçmiş yalnız kullanıcı eylemiyle yazılır. Metin textContent ile basılır.
+(function (kok) {
+  'use strict';
+  let api = null;
+  let depo = null;
+  const ek = { taslak: null, taslakDurumu: null, onayli: null, sonuc: null, formImza: null, ileti: '', iletiTur: 'bilgi' };
+
+  function TA() { return kok.KutuTeklifArac; }
+
+  function kur(a) {
+    api = a;
+    let ls = null;
+    try { ls = window.localStorage; } catch (e) { ls = null; }
+    if (!ls) ls = { getItem: function () { throw new Error('localStorage yok'); }, setItem: function () { throw new Error('localStorage yok'); }, key: function () { return null; }, length: 0 };
+    depo = kok.KutuTeklifDepo.tarayiciBagdastirici(ls, api.C, TA().taslakMi);
+    const t = depo.taslakOku();
+    ek.taslakDurumu = t.durum;
+    ek.taslak = t.durum === 'tamam' ? t.taslak : TA().bosTaslak();
+  }
+
+  // Onaylı dosya bellekte kalır; ekranda yalnız şimdiki dosyanın özetiyle tutarsa görünür (teklif ya da fiyat
+  // değişince onay düşer, geri alınınca aynı dosya yine onaylıdır).
+  function kaydetTaslak(yeni) {
+    ek.taslak = yeni;
+    try {
+      depo.taslakYaz(yeni);
+      ek.taslakDurumu = 'tamam';
+    } catch (e) {
+      ek.ileti = 'Taslak tarayıcıya yazılamadı: ' + (e && e.message || e);
+      ek.iletiTur = 'hata';
+    }
+  }
+
+  // Seçim ekranından: hesaplanmış ürün isteği taslağa eklenir (açıklama katalog etiketlerinden).
+  function urunEkle(istek) {
+    const C = api.C;
+    const acilim = C.urunAcilimi(api.durum.katalog, istek.urun);
+    if (ek.taslakDurumu === 'bozuk') return { tamam: false, ileti: 'Tarayıcıdaki teklif taslağı okunamıyor; Teklif sekmesinde "Yeni teklif" ile sıfırlayın.' };
+    kaydetTaslak(TA().satirEkle(ek.taslak, istek, TA().aciklama(acilim, istek)));
+    ek.formImza = null;
+    return { tamam: ek.iletiTur !== 'hata' || !ek.ileti, ileti: 'Teklife eklendi (' + ek.taslak.satirlar.length + ' ürün). Teklif sekmesinde açın.' };
+  }
+
+  function hesapla() {
+    const C = api.C;
+    const kurulan = TA().girdiKur(ek.taslak, api.bugun());
+    if (!ek.taslak.satirlar.length) return { hata: null, bos: true };
+    if (kurulan.eksik_giderler.length) return { hata: 'Ortak giderin adı ya da tutarı boş (satır ' + kurulan.eksik_giderler.map(function (i) { return i + 1; }).join(', ') + ').' };
+    if (!kurulan.girdi.teklif.gecerlilik_tarihi) return { hata: 'Teklifin geçerlilik tarihini girin.' };
+    try {
+      return { dosya: C.teklifDosyasiKur(api.durum.katalog, kurulan.girdi) };
+    } catch (e) {
+      if (!(e instanceof C.CekirdekHatasi)) throw e;
+      return { hata: api.A.kodMetni(Object.assign({ kod: e.kod }, e.ayrinti)) };
+    }
+  }
+
+  function ciz() {
+    const kap = document.getElementById('teklif');
+    if (!api || !kap || !api.durum.katalog || !ek.taslak) return;
+    const imza = api.C.katalogOzeti(api.durum.katalog) + '|' + ek.taslak.satirlar.length + '|' + ek.taslak.ortak_giderler.length + '|' + ek.taslakDurumu;
+    if (imza === ek.formImza && kap.firstChild) { sonucCiz(); return; }
+    ek.formImza = imza;
+    formCiz(kap);
+  }
+
+  function formCiz(kap) {
+    const { el, ekle, bosalt } = api;
+    const T = TA();
+    bosalt(kap);
+    ekle(kap, el('h2', { metin: 'Teklif — çok ürünlü müşteri teklifi' }));
+    if (ek.taslakDurumu === 'bozuk') {
+      ekle(kap, el('p', { sinif: 'ileti uyari', metin: 'Tarayıcıdaki teklif taslağı okunamadı (biçim bozuk); dokunulmadı. "Yeni teklif" yeni bir taslak başlatır ve eskisinin yerine yazar.' }));
+    }
+    const sayi = ek.taslak.satirlar.length;
+    // Ürünler: açıklama düzenlenebilir (müşteriye görünen metin), fiyatlar sonuç tablosunda.
+    const urunler = el('div', { 'data-teklif': 'urunler' });
+    if (!sayi) {
+      ekle(urunler, el('p', { metin: 'Teklifte ürün yok. Seçim ekranında ürünü hesaplayıp "Teklife ekle" deyin; farklı bedenleri ayrı satır olarak ekleyebilirsiniz.' }));
+    } else {
+      ekle(urunler, el('h3', { metin: 'Ürünler (' + sayi + ')' }));
+      const urunTanimlari = api.durum.katalog.urunler || {};
+      ek.taslak.satirlar.forEach(function (x, i) {
+        const tanim = urunTanimlari[x.istek.urun];
+        const kutu = el('textarea', { rows: 2, 'data-teklif-aciklama': String(i), value: x.aciklama, onchange: function () { kaydetTaslak(T.aciklamaDegistir(ek.taslak, i, kutu.value)); sonucCiz(); } });
+        ekle(urunler, el('div', { sinif: 'teklif-urun' },
+          el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: (i + 1) + '. ' + ((tanim && tanim.label_tr) || x.istek.urun) + ' · ' + x.istek.adet + ' adet · kâr %' + (x.istek.kar_yuzde || '0') }), kutu),
+          el('button', { type: 'button', sinif: 'dugme ikincil', 'data-teklif-kaldir': String(i), metin: 'Kaldır', onclick: function () { kaydetTaslak(T.satirKaldir(ek.taslak, i)); ek.formImza = null; ciz(); } })));
+      });
+    }
+    // Teklif bilgileri
+    const bilgi = function (ad, etiketMetni, kutu) {
+      kutu.setAttribute('data-teklif-bilgi', ad);
+      kutu.addEventListener('change', function () { kaydetTaslak(T.bilgiDegistir(ek.taslak, ad, kutu.value)); sonucCiz(); });
+      return el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: etiketMetni }), kutu);
+    };
+    const t = ek.taslak.teklif;
+    const teslim = el('select', null, ['EXW', 'FOB'].map(function (s) { return el('option', { value: s, metin: s }); }));
+    teslim.value = t.teslim_sekli || 'EXW';
+    const bilgiler = el('div', { sinif: 'izgara' },
+      bilgi('teklif_no', 'Teklif no', el('input', { type: 'text', value: t.teklif_no || '' })),
+      bilgi('firma', 'Firma (teklif başlığı)', el('input', { type: 'text', value: t.firma || '' })),
+      bilgi('musteri', 'Müşteri', el('input', { type: 'text', value: t.musteri || '' })),
+      bilgi('teslim_sekli', 'Teslim şekli', teslim),
+      bilgi('teslim_yeri', 'Teslim yeri', el('input', { type: 'text', value: t.teslim_yeri || '', placeholder: 'ör. fabrika / liman' })),
+      bilgi('gecerlilik_tarihi', 'Geçerlilik tarihi', el('input', { type: 'date', value: t.gecerlilik_tarihi || '' })),
+      bilgi('not', 'Not (müşteri teklifinde görünür)', el('textarea', { rows: 2, value: t.not || '' })));
+    // Ortak giderler
+    const giderler = el('div', { 'data-teklif': 'giderler' }, el('h3', { metin: 'Ortak giderler' }),
+      el('p', { sinif: 'soluk', metin: 'Birden çok ürünün paylaştığı gider (ör. ortak kalıp) ve FOB masrafları: ürünlerin satış tutarı oranında dağıtılır, maliyete eklenir ve kâra tabidir (genel gidere girmez). Tutar teklif para biriminde, siparişin toplamıdır. EXW teklifte FOB masrafları dağıtılmaz.' }));
+    ek.taslak.ortak_giderler.forEach(function (g, i) {
+      const ad = el('input', { type: 'text', value: g.label_tr, 'data-teklif-gider': 'label_tr', onchange: function () { kaydetTaslak(T.giderDegistir(ek.taslak, i, 'label_tr', ad.value)); sonucCiz(); } });
+      const tutar = el('input', { type: 'text', inputMode: 'decimal', value: g.tutar, 'data-teklif-gider': 'tutar', onchange: function () { kaydetTaslak(T.giderDegistir(ek.taslak, i, 'tutar', tutar.value)); sonucCiz(); } });
+      const tur = el('select', { 'data-teklif-gider': 'tur', onchange: function () { kaydetTaslak(T.giderDegistir(ek.taslak, i, 'tur', tur.value)); sonucCiz(); } },
+        el('option', { value: 'genel', metin: 'Ortak gider' }), el('option', { value: 'fob', metin: 'FOB masrafı' }));
+      tur.value = g.tur;
+      ekle(giderler, el('div', { sinif: 'izgara teklif-gider' },
+        el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: 'Gider' }), ad),
+        el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: 'Tutar' }), tutar),
+        el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: 'Tür' }), tur),
+        el('button', { type: 'button', sinif: 'dugme ikincil', metin: 'Sil', onclick: function () { kaydetTaslak(T.giderKaldir(ek.taslak, i)); ek.formImza = null; ciz(); } })));
+    });
+    ekle(giderler, el('div', { sinif: 'dugmeler' },
+      el('button', { type: 'button', sinif: 'dugme ikincil', 'data-teklif-gider-ekle': 'genel', metin: 'Ortak gider ekle', onclick: function () { kaydetTaslak(T.giderEkle(ek.taslak, 'genel')); ek.formImza = null; ciz(); } }),
+      el('button', { type: 'button', sinif: 'dugme ikincil', 'data-teklif-gider-ekle': 'fob', metin: 'FOB masrafı ekle', onclick: function () { kaydetTaslak(T.giderEkle(ek.taslak, 'fob')); ek.formImza = null; ciz(); } })));
+    ek.sonuc = el('div', { id: 'teklif-sonuc' });
+    ekle(kap, urunler, sayi ? el('h3', { metin: 'Teklif bilgileri' }) : null, sayi ? bilgiler : null, sayi ? giderler : null, ek.sonuc,
+      el('div', { sinif: 'dugmeler' }, el('button', { type: 'button', sinif: 'dugme ikincil', 'data-teklif': 'yeni', metin: 'Yeni teklif (taslağı temizle)', onclick: function () {
+        if (ek.taslak.satirlar.length && !window.confirm('Taslaktaki ürünler ve bilgiler silinsin mi? Onaylanmış teklifler geçmişte kalır.')) return;
+        kaydetTaslak(T.bosTaslak()); ek.formImza = null; ciz();
+      } })),
+      gecmisCiz());
+    sonucCiz();
+  }
+
+  function sonucCiz() {
+    const kap = ek.sonuc;
+    if (!kap) return;
+    const { el, ekle, bosalt, C } = api;
+    const T = TA();
+    bosalt(kap);
+    if (ek.ileti) { ekle(kap, el('div', { sinif: 'ileti ' + ek.iletiTur, role: 'status', metin: ek.ileti })); ek.ileti = ''; }
+    const r = hesapla();
+    if (r.bos) return;
+    if (r.hata) { ekle(kap, el('p', { sinif: 'ileti uyari', 'data-teklif': 'engel', metin: 'Teklif kurulamadı: ' + r.hata })); return; }
+    const d = r.dosya;
+    const pb = d.teklif.para_birimi;
+    const simge = pb === 'EUR' ? '€' : pb === 'USD' ? '$' : pb;
+    const bas = ['#', 'Ürün', 'Adet', 'Birim fiyat (' + simge + ')', 'Toplam (' + simge + ')'];
+    ekle(kap, el('h3', { metin: 'Teklif özeti' }),
+      el('div', { sinif: 'tablo-kap' }, el('table', { sinif: 'tablo', 'data-teklif': 'ozet' },
+        el('thead', null, el('tr', null, bas.map(function (b) { return el('th', { metin: b }); }))),
+        el('tbody', null, d.satirlar.map(function (x, i) {
+          const s = x.kayit.sonuc;
+          return el('tr', null, el('td', { metin: String(i + 1) }), el('td', { metin: x.aciklama }),
+            el('td', { sinif: 'sayi', 'data-baslik': 'Adet', metin: T.adetMetni(s.adet) }),
+            el('td', { sinif: 'sayi', 'data-baslik': bas[3], metin: T.paraMetni(s.birim_fiyat) }),
+            el('td', { sinif: 'sayi', 'data-baslik': bas[4], metin: T.paraMetni(s.toplam) }));
+        })))));
+    if (d.dagitim.length) {
+      ekle(kap, el('h4', { metin: 'Ortak gider dağıtımı (iç bilgi, müşteri teklifinde yok)' }),
+        el('div', { sinif: 'tablo-kap' }, el('table', { sinif: 'tablo', 'data-teklif': 'dagitim' },
+          el('thead', null, el('tr', null, ['Gider', 'Tutar (' + simge + ')'].concat(d.satirlar.map(function (x, i) { return 'Ürün ' + (i + 1); })).map(function (b) { return el('th', { metin: b }); }))),
+          el('tbody', null, d.dagitim.map(function (g) {
+            return el('tr', null, el('td', { metin: g.label_tr + (g.tur === 'fob' ? ' (FOB)' : '') + (g.etkin ? '' : ' — EXW: dağıtılmadı') }), el('td', { sinif: 'sayi', metin: T.paraMetni(g.tutar) }),
+              d.satirlar.map(function (x, i) { return el('td', { sinif: 'sayi', 'data-baslik': 'Ürün ' + (i + 1), metin: g.paylar ? T.paraMetni(g.paylar[i]) : '—' }); }));
+          })))));
+    }
+    ekle(kap, el('p', { 'data-teklif': 'toplam', metin: 'Genel toplam: ' + T.paraMetni(d.toplam.genel) + ' ' + simge + ' (' + d.teklif.teslim_sekli + (d.teklif.teslim_yeri ? ' ' + d.teklif.teslim_yeri : '') + '; ortak gidersiz ' + T.paraMetni(d.toplam.ortak_gidersiz) + ' ' + simge + ', dağıtılan ortak gider ' + T.paraMetni(d.toplam.ortak_gider) + ' ' + simge + ')' }));
+    // Onay KAYDI: ad + tarih dosyanın özetine bağlanır; dosya değişirse düşer.
+    const onayli = ek.onayli && ek.onayli.ozet === d.ozet ? ek.onayli : null;
+    const ileti = el('div', { role: 'status', 'aria-live': 'polite' });
+    if (!onayli) {
+      const ad = el('input', { type: 'text', 'data-teklif': 'onaylayan', placeholder: 'ad soyad' });
+      ekle(kap, el('h3', { metin: 'Onay' }),
+        el('p', { sinif: 'soluk', metin: 'Onay bir kayıttır, yetki değildir: adınız ve bugünün tarihi teklif dosyasına yazılır, teklif geçmişe kaydedilir. Onaydan sonra teklif değişirse onay düşer. Gerçek yetki ayrımı CRM\'e taşınınca kurulur.' }),
+        el('label', { sinif: 'alan' }, el('span', { sinif: 'alan-ad', metin: 'Onaylayan' }), ad),
+        el('div', { sinif: 'dugmeler' }, el('button', { type: 'button', sinif: 'dugme', 'data-teklif': 'onayla', metin: 'Onayla ve geçmişe kaydet', onclick: function () {
+          let o;
+          try { o = C.teklifOnayla(d, { onaylayan: ad.value, tarih: api.bugun() }); } catch (e) {
+            if (!(e instanceof C.CekirdekHatasi)) throw e;
+            ileti.textContent = 'Onaylanamadı: ' + api.A.kodMetni(Object.assign({ kod: e.kod }, e.ayrinti));
+            return;
+          }
+          try {
+            const sonuc = depo.gecmiseEkle(o);
+            ek.ileti = sonuc === 'zaten' ? 'Bu teklif geçmişte zaten kayıtlı.' : 'Teklif onaylandı ve geçmişe kaydedildi.';
+            ek.iletiTur = 'tamam';
+          } catch (e) {
+            ek.ileti = 'Onaylandı ama geçmişe kaydedilemedi: ' + (e && e.message || e) + ' Teklif dosyasını indirip saklayın.';
+            ek.iletiTur = 'uyari';
+          }
+          ek.onayli = o;
+          ek.formImza = null;
+          ciz();
+        } })), ileti);
+    } else {
+      ekle(kap, el('h3', { metin: 'Onaylı teklif' }),
+        el('p', { 'data-teklif': 'onay-bilgi', metin: 'Onaylayan: ' + onayli.onay.onaylayan + ' · ' + T.tarihMetni(onayli.onay.tarih) + ' · özet ' + api.kisa(onayli.ozet) }),
+        el('div', { sinif: 'dugmeler' },
+          el('button', { type: 'button', sinif: 'dugme', 'data-teklif': 'yazdir', metin: 'Müşteri teklifini yazdır / PDF', onclick: function () { yazdir(onayli); } }),
+          el('button', { type: 'button', sinif: 'dugme ikincil', 'data-teklif': 'indir', metin: 'Teklif dosyasını indir (.json, iç kayıt)', onclick: function () { dosyaIndir(onayli); } })),
+        el('p', { sinif: 'soluk', metin: 'Teklif dosyası iç kayıttır: maliyet kırılımı ve kâr içerir, müşteriye göndermeyin. Müşteriye yalnız yazdırılan teklif gider.' }));
+    }
+  }
+
+  function dosyaIndir(dosya) {
+    const C = api.C;
+    api.indir(JSON.stringify(JSON.parse(C.kanonikJson(dosya)), null, 2) + '\n', 'teklif-dosyasi-' + (dosya.teklif.teklif_no || dosya.teklif.hesap_tarihi).replace(/[^0-9A-Za-z_-]+/g, '_') + '.json');
+  }
+
+  // Müşteri teklifi: çekirdeğin beyaz listeli görünümünden; yalnız yazdırmada görünür (#baski).
+  function yazdir(dosya) {
+    const { el, ekle, bosalt, C } = api;
+    const T = TA();
+    let m;
+    try { m = C.musteriGorunumu(dosya); } catch (e) {
+      if (!(e instanceof C.CekirdekHatasi)) throw e;
+      ek.ileti = 'Müşteri teklifi çıkmadı: ' + api.A.kodMetni(Object.assign({ kod: e.kod }, e.ayrinti));
+      ek.iletiTur = 'hata';
+      sonucCiz();
+      return;
+    }
+    const kap = document.getElementById('baski');
+    bosalt(kap);
+    const simge = m.para_birimi === 'EUR' ? '€' : m.para_birimi === 'USD' ? '$' : m.para_birimi;
+    const satir = function (ad, deger) { return deger ? el('tr', null, el('th', { metin: ad }), el('td', { metin: deger })) : null; };
+    ekle(kap,
+      m.firma ? el('p', { sinif: 'baski-firma', metin: m.firma }) : null,
+      el('h1', { metin: 'TEKLİF' }),
+      el('table', { sinif: 'baski-bilgi' }, el('tbody', null,
+        satir('Teklif no', m.teklif_no), satir('Tarih', T.tarihMetni(m.tarih)), satir('Müşteri', m.musteri),
+        satir('Teslim şekli', m.teslim_sekli + (m.teslim_yeri ? ' — ' + m.teslim_yeri : '')), satir('Geçerlilik', T.tarihMetni(m.gecerlilik_tarihi) + ' tarihine kadar'))),
+      el('table', { sinif: 'baski-satirlar' },
+        el('thead', null, el('tr', null, ['#', 'Ürün', 'Adet', 'Birim fiyat (' + simge + ')', 'Toplam (' + simge + ')'].map(function (b) { return el('th', { metin: b }); }))),
+        el('tbody', null, m.satirlar.map(function (s) {
+          return el('tr', null, el('td', { metin: String(s.sira) }), el('td', { metin: s.aciklama }), el('td', { sinif: 'sayi', metin: T.adetMetni(s.adet) }),
+            el('td', { sinif: 'sayi', metin: T.paraMetni(s.birim_fiyat) }), el('td', { sinif: 'sayi', metin: T.paraMetni(s.toplam) }));
+        })),
+        el('tfoot', null, el('tr', null, el('th', { colSpan: 4, metin: 'Genel toplam (' + m.para_birimi + ', ' + m.teslim_sekli + ')' }), el('td', { sinif: 'sayi', metin: T.paraMetni(m.genel_toplam) })))),
+      m.not ? el('p', { sinif: 'baski-not', metin: m.not }) : null,
+      el('p', { sinif: 'baski-alt', metin: 'Fiyatlar ' + m.para_birimi + ' cinsinden, ' + m.teslim_sekli + ' teslimdir; teklif ' + T.tarihMetni(m.gecerlilik_tarihi) + ' tarihine kadar geçerlidir.' }));
+    document.body.classList.add('baskida');
+    window.print();
+  }
+
+  function gecmisCiz() {
+    const { el, ekle } = api;
+    const T = TA();
+    const kutu = el('details', { sinif: 'gecmis', 'data-teklif': 'gecmis' }, el('summary', { metin: 'Teklif geçmişi (bu tarayıcıda)' }));
+    let liste;
+    try { liste = depo.gecmisListe(); } catch (e) {
+      ekle(kutu, el('p', { sinif: 'ileti uyari', metin: 'Teklif geçmişi okunamadı: ' + (e && e.message || e) }));
+      return kutu;
+    }
+    ekle(kutu, el('p', { sinif: 'soluk', metin: 'Yalnız onaylı teklifler; kayıt silinmez ve değiştirilmez. Geçmiş bu tarayıcıdadır: tarayıcı verisi silinirse gider, düzenli olarak "Geçmişi indir" ile yedekleyin.' }));
+    if (liste.bozuk.length) ekle(kutu, el('p', { sinif: 'ileti uyari', metin: liste.bozuk.length + ' kayıt okunamadı (bozuk); dokunulmadı.' }));
+    if (!liste.dosyalar.length) ekle(kutu, el('p', { metin: 'Henüz onaylı teklif yok.' }));
+    else {
+      ekle(kutu, el('div', { sinif: 'tablo-kap' }, el('table', { sinif: 'tablo', 'data-teklif': 'gecmis-tablo' },
+        el('thead', null, el('tr', null, ['Tarih', 'Teklif no', 'Müşteri', 'Toplam', 'Onaylayan', ''].map(function (b) { return el('th', { metin: b }); }))),
+        el('tbody', null, liste.dosyalar.map(function (x) {
+          const d = x.dosya;
+          return el('tr', null, el('td', { metin: T.tarihMetni(d.teklif.hesap_tarihi) }), el('td', { metin: d.teklif.teklif_no || '—' }), el('td', { metin: d.teklif.musteri || '—' }),
+            el('td', { sinif: 'sayi', 'data-baslik': 'Toplam', metin: T.paraMetni(d.toplam.genel) + ' ' + d.teklif.para_birimi }), el('td', { metin: d.onay.onaylayan }),
+            el('td', null, el('button', { type: 'button', sinif: 'dugme ikincil', metin: 'Yazdır', onclick: function () { yazdir(d); } }),
+              el('button', { type: 'button', sinif: 'dugme ikincil', metin: 'İndir', onclick: function () { dosyaIndir(d); } })));
+        })))));
+    }
+    const ileti = el('div', { role: 'status', 'aria-live': 'polite' });
+    const sec = el('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: function () {
+      const f = sec.files && sec.files[0];
+      sec.value = '';
+      if (!f) return;
+      f.text().then(function (metin) {
+        try {
+          const s = depo.iceAktar(metin);
+          ek.ileti = 'Geçmiş yüklendi: ' + s.eklenen + ' eklendi, ' + s.zaten + ' zaten vardı, ' + s.reddedilen + ' reddedildi (bozuk ya da onaysız).';
+          ek.iletiTur = 'tamam';
+        } catch (e) {
+          ek.ileti = 'Geçmiş yüklenemedi: ' + (e && e.message || e);
+          ek.iletiTur = 'hata';
+        }
+        ek.formImza = null;
+        ciz();
+      });
+    } });
+    ekle(kutu, el('div', { sinif: 'dugmeler' },
+      el('button', { type: 'button', sinif: 'dugme ikincil', 'data-teklif': 'gecmis-indir', metin: 'Geçmişi indir (.json)', onclick: function () { api.indir(depo.disaAktar(), 'teklif-gecmisi-' + api.bugun() + '.json'); } }),
+      el('label', { sinif: 'dugme ikincil' }, 'Geçmiş dosyası yükle', sec)), ileti);
+    return kutu;
+  }
+
+  kok.KutuTeklifEkrani = { kur, ciz, urunEkle, durum: ek };
+})(this);
+
+// Kutu ekranı: katalog aç/kaydet/yedek, sekmeler (Seçim, Teklif, Parametreler), geri al / yinele, geri bildirim.
 // Hesap ve doğrulama çekirdekte (FiyatCekirdek); burada yalnız ekran durumu ve çizim var. Eski ağaç
 // hesabı, editör, hızlı güncelleme ve karşılaştırma sekmeleri S-3a'da sayfadan kaldırıldı (kullanıcı kararı).
 // Katalogdan gelen her metin textContent ile basılır (innerHTML yok).
@@ -8302,10 +9233,11 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     }, 350);
   }
   // Sekmeler ve katalog değişince yeniden çizilen ekranlar.
-  // İki sekme: önde Seçim, arkada Parametreler (kullanıcı kararı: eski sekmeler tamamen kalktı).
-  const SEKMELER = ['urun', 'parametreler'];
+  // Üç sekme: önde Seçim, sonra Teklif (Faz 3, kullanıcı kararı 3 Kasım), arkada Parametreler (eski sekmeler
+  // tamamen kalktı).
+  const SEKMELER = ['urun', 'teklif', 'parametreler'];
   function moduller() {
-    return [window.KutuUrunEkrani, window.KutuParametreEkrani].filter(Boolean);
+    return [window.KutuUrunEkrani, window.KutuTeklifEkrani, window.KutuParametreEkrani].filter(Boolean);
   }
   function modulleriCiz() {
     for (const m of moduller()) m.ciz();
@@ -8500,7 +9432,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } else if (ac.durum === 'erisilemez') {
       ekle(kutu, el('div', { sinif: 'ileti uyari' }, 'Tarayıcı deposu kullanılamıyor (gizli pencere ya da site verisi engelli: ' + ac.neden + '). Yalnız dosyayla çalışın: "Dosyadan aç" ve "Katalog dosyasını indir".'));
     } else if (ac.durum === 'bos' && durum.kaynak === 'ornek') {
-      ekle(kutu, el('div', { sinif: 'ileti bilgi' }, 'İlk açılış: örnek katalog yüklü (havlu ve bornoz; TÜM SAYILAR UYDURMA). Kendi kataloğunuzu Katalog kartındaki "Dosyadan aç" ile yükleyin.'));
+      ekle(kutu, el('div', { sinif: 'ileti bilgi' }, 'İlk açılış: örnek katalog yüklü (havlu, bornoz, nevresim, bebek, dijital baskı; TÜM SAYILAR UYDURMA). Kendi kataloğunuzu Katalog kartındaki "Dosyadan aç" ile yükleyin.'));
     }
   }
 
