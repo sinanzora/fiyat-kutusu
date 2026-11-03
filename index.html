@@ -428,7 +428,7 @@ module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIM
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "0ada59e54a4c1353fdec6d915534dcf7d1eacc091cfa38185bea03a18c0574d1" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "3be89e7a7d9c3c35876b86c5bb7c4d59058be81da0b0f03997a62da565f4afd5" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -3188,7 +3188,7 @@ function kategoriSekli(ad, k) {
 function urunIstekSekli(istek) {
   if (!nesneMi(istek)) throw iBozuk(null);
   for (const alan of ['urun', 'hesap_tarihi']) if (!metinMi(istek[alan])) throw iBozuk(alan);
-  for (const alan of ['kar_yuzde', 'adet']) if (istek[alan] !== undefined && !metinMi(istek[alan])) throw iBozuk(alan);
+  for (const alan of ['kar_yuzde', 'adet', 'kar_esasi']) if (istek[alan] !== undefined && !metinMi(istek[alan])) throw iBozuk(alan);
   metinSozlugu(istek.alanlar, 'alanlar');
   if (istek.bayat_onaylari !== undefined && !(Array.isArray(istek.bayat_onaylari) && istek.bayat_onaylari.every(metinMi))) {
     throw iBozuk('bayat_onaylari');
@@ -3234,6 +3234,9 @@ const URUN_ALAN = 'alan_m2';
 const URUN_KUMAS_KALEMI = 'kumas';
 // Kırılım satırlarının ve birim fiyatın ondalık hanesi (Fable S1).
 const URUN_HANE = 4;
+// Kâr esası: maliyet üzerine kâr (markup) ya da satış üzerinden brüt marj (kullanıcı, 3 Kasım).
+const KAR_ESASLARI = Object.freeze(['maliyet', 'satis']);
+const VARSAYILAN_KAR_ESASI = 'maliyet';
 // Ürün akışında satır para birimi ürününki değilse yalnız TRY olabilir; kur parametresiyle çevrilir.
 const KUR_KAYNAGI = 'TRY';
 
@@ -3323,7 +3326,7 @@ module.exports = {
   BICIM, BICIM_SURUMU, PARA_BIRIMLERI, KAPSAMLAR, DUGUM_TURLERI, PARAMETRE_TURLERI, DURUMLAR,
   AYRILMIS_ADLAR, SIPARIS_BIRIMI, YOL_BIRIMI, AYRILMIS_BIRIMLER, AD_DESENI, AD_UZUNLUK, ANAHTAR_DESENI, BIRIM_DESENI, GORUNTU_BIRIM_DESENI,
   YASAK_ANAHTARLAR, ALANLAR, SINIRLAR,
-  URUN_ALAN_TURLERI, KALEM_TIPLERI, MATRAHLAR, VARSAYILAN_MATRAH, YUZDE_BICIMLERI, VARSAYILAN_YUZDE_BICIMI, KUMAS_BIRIMLERI, URUN_AGIRLIK, URUN_ALAN, URUN_KUMAS_KALEMI, URUN_HANE, KUR_KAYNAGI,
+  URUN_ALAN_TURLERI, KALEM_TIPLERI, MATRAHLAR, VARSAYILAN_MATRAH, YUZDE_BICIMLERI, VARSAYILAN_YUZDE_BICIMI, KUMAS_BIRIMLERI, URUN_AGIRLIK, URUN_ALAN, URUN_KUMAS_KALEMI, URUN_HANE, KAR_ESASLARI, VARSAYILAN_KAR_ESASI, KUR_KAYNAGI,
   adGecerliMi,
 };
 
@@ -3409,6 +3412,9 @@ function ayniOndalik(a, b) {
 // İstek ile sonuç tutarlı mı: uyuşmayan ilk alanın adı ya da null. Sonucun seçimleri istekte aynen olmalı.
 function uyusmazlik(istek, sonuc) {
   for (const alan of ['urun', 'hesap_tarihi']) if (istek[alan] !== sonuc[alan]) return alan;
+  // Kâr esası: istekte yoksa varsayılan (maliyet üzerine); eski sonuçta alan yoksa da varsayılan.
+  const esas = function (x) { return x === undefined || x === null ? 'maliyet' : x; };
+  if (esas(istek.kar_esasi) !== esas(sonuc.kar_esasi)) return 'kar_esasi';
   for (const alan of ['adet', 'kar_yuzde']) {
     const i = istek[alan] === undefined ? null : istek[alan];
     if (!ayniOndalik(i, sonuc[alan])) return alan;
@@ -3484,8 +3490,10 @@ module.exports = { teklifKaydi, teklifKaydiDenetle, TEKLIF_BICIMI: BICIM, TEKLIF
 //  4. Adet başına tutar; kg başına tutar × agirlik_kg.
 //  5. Ara toplam = 2-4 satırlarının toplamı.
 //  6. Ara toplam matrahlı yüzdeler (genel gider) = ara toplam × oran.
-//  7. Maliyet = ara toplam + 6.  8. Kâr = maliyet × kâr % / 100.  9. Satış = maliyet + kâr.
-//  10. Sipariş toplamı = satış × adet.
+//  7. Maliyet = ara toplam + 6.  8. Kâr: kâr esası "maliyet" (markup, varsayılan) ise maliyet × kâr % / 100;
+//     "satis" (satış üzerinden brüt marj) ise satış = maliyet ÷ (1 − marj % / 100), kâr = satış − maliyet
+//     (marj 0 ≤ m < 100; 100 ve üstü fiyat yok).  9. Satış = maliyet + kâr.
+//  10. Sipariş toplamı = satış × adet. Brüt kâr ve gerçekleşen marj teklif (yuvarlanmış) fiyatından.
 // Her adımda satır sırası: önce seçim alanlarının kalemleri (alan sırasıyla), sonra ürün kalemleri.
 // Yuvarlama (S1): iç hesap tam; her kırılım satırı TEK yuvarlamayla 4 haneye iner ve sonraki
 // adımlar YUVARLANMIŞ satırlardan kurulur (tablo elle toplamayla her zaman tutar). Ara değer
@@ -3824,12 +3832,16 @@ function hesaplaIc(katalog, istek, ozetler) {
   }
   if (!kumasAlani) throw hata('URUN_KUMAS_ALANI', { urun: urunAdi });
 
+  // Kâr esası (kullanıcı, 3 Kasım): maliyet üzerine kâr (markup) ya da satış üzerinden brüt marj.
+  const karEsasi = istek.kar_esasi === undefined ? S.VARSAYILAN_KAR_ESASI : istek.kar_esasi;
+  if (S.KAR_ESASLARI.indexOf(karEsasi) === -1) throw hata('KAR_ESASI_GECERSIZ', { kar_esasi: karEsasi });
   let kar = null;
   if (istek.kar_yuzde === undefined || istek.kar_yuzde === '') {
     eksikEkle({ tur: 'kar_yuzde' });
   } else {
     kar = sayiOku(istek.kar_yuzde, 'kar_yuzde');
     if (kar < 0n) { eksikEkle({ tur: 'kar_yuzde', neden: 'negatif' }); kar = null; }
+    else if (karEsasi === 'satis' && kar >= 100n * D.OLCEK) { eksikEkle({ tur: 'kar_yuzde', neden: 'marj_100_ve_ustu' }); kar = null; }
   }
   let adet = null;
   if (istek.adet === undefined || istek.adet === '') {
@@ -4287,6 +4299,7 @@ function hesaplaIc(katalog, istek, ozetler) {
     hesap_tarihi: hesapTarihi,
     adet: istek.adet === undefined ? null : istek.adet,
     kar_yuzde: istek.kar_yuzde === undefined ? null : istek.kar_yuzde,
+    kar_esasi: karEsasi,
     secimler,
     kullanilan_parametreler: parametreGoruntuleri,
     bayat_parametreler: parametreGoruntuleri.filter(function (g) { return g.bayat; }).map(function (g) { return g.ad; }),
@@ -4306,11 +4319,19 @@ function hesaplaIc(katalog, istek, ozetler) {
   let maliyet = araToplam;
   for (const s of satirlar) if (!s.ara_toplama_girer) maliyet = D.topla(maliyet, s.tutar_d);
   if (maliyet <= 0n) throw hata('MALIYET_POZITIF_DEGIL', { urun: urunAdi });
-  const karTutari = D.kesirdenHane(maliyet * kar, OO * 100n, HANE);
+  // Marjda satış tek yuvarlamayla 4 haneye iner, kâr = satış − maliyet (ikisi de 4 haneli; tablo tutar).
+  const karTutari = karEsasi === 'satis'
+    ? D.cikar(D.kesirdenHane(maliyet * 100n, 100n * D.OLCEK - kar, HANE), maliyet)
+    : D.kesirdenHane(maliyet * kar, OO * 100n, HANE);
   const hesaplanan = D.topla(maliyet, karTutari);
   // Teklif (birim) fiyatı: hesaplanan fiyat adımın katına YUKARI yuvarlanır; toplam teklif fiyatından.
   const birimFiyat = adim !== null && adim > 0n ? D.yukari(hesaplanan, adim) : hesaplanan;
   const toplam = carpHane(birimFiyat, adet);
+  // Brüt kâr teklif fiyatından (yuvarlama payı dahil); gerçekleşen marj = brüt kâr ÷ teklif fiyatı, 2 hane.
+  const birimBrutKar = D.cikar(birimFiyat, maliyet);
+  const toplamMaliyet = carpHane(maliyet, adet);
+  const toplamBrutKar = D.cikar(toplam, toplamMaliyet);
+  const gerceklesenMarj = D.kesirdenHane(birimBrutKar * 100n, birimFiyat, 2);
 
   const araDegerler = [];
   (u.ara_degerler || []).forEach(function (t) {
@@ -4333,6 +4354,10 @@ function hesaplaIc(katalog, istek, ozetler) {
     yuvarlama: adimParametresi === undefined ? null : { parametre: adimParametresi, adim: kullanilan[adimParametresi].goruntu.deger },
     birim_fiyat: tutarMetni(birimFiyat),
     toplam: tutarMetni(toplam),
+    toplam_maliyet: tutarMetni(toplamMaliyet),
+    birim_brut_kar: tutarMetni(birimBrutKar),
+    toplam_brut_kar: tutarMetni(toplamBrutKar),
+    gerceklesen_marj_yuzde: D.metne(gerceklesenMarj, 2),
     // `kur` TRY kurudur (eski biçim; CRM fx izi). Başka kaynaklı kurlar satır izinde ve kullanılan parametrelerde.
     kur: kurlar[S.KUR_KAYNAGI] ? { parametre: kurlar[S.KUR_KAYNAGI].ad, deger: kullanilan[kurlar[S.KUR_KAYNAGI].ad].goruntu.deger } : null,
     kaydedilebilir: parametreGoruntuleri.every(function (g) { return !g.bayat || g.bayat_onaylandi; }),
@@ -7477,8 +7502,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       }
     }
     const istek = { urun: urunAdi, alanlar, hesap_tarihi: hesapTarihi };
-    const kar = sayiAl('kar_yuzde', h.kar_yuzde, 'Kâr %');
+    const kar = sayiAl('kar_yuzde', h.kar_yuzde, h.kar_esasi === 'satis' ? 'Marj %' : 'Kâr %');
     if (kar !== undefined) istek.kar_yuzde = kar;
+    // Varsayılan (maliyet üzerine) istekte yazılmaz: eski teklif kayıtları aynı kalır.
+    if (h.kar_esasi === 'satis') istek.kar_esasi = 'satis';
     const adet = sayiAl('adet', h.adet, 'Sipariş adedi');
     if (adet !== undefined) istek.adet = adet;
     return { istek, hatalar };
@@ -7504,7 +7531,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       if (a && a.tur !== 'sayi') return ad + ': seçilmedi.';
       return ad + ': boş' + (e.gereken ? ' — ' + kalemAdi(urun, e.gereken) + ' hesabı için gerekli.' : '.');
     }
-    if (e.tur === 'kar_yuzde') return e.neden === 'negatif' ? 'Kâr %: eksi olamaz.' : 'Kâr %: boş.';
+    if (e.tur === 'kar_yuzde') return e.neden === 'marj_100_ve_ustu' ? 'Marj %: 100\'ün altında olmalı (satış üzerinden marj %100 olamaz).' : e.neden === 'negatif' ? 'Kâr %: eksi olamaz.' : 'Kâr %: boş.';
     if (e.tur === 'adet') return e.neden ? 'Sipariş adedi: pozitif tam sayı olmalı.' : 'Sipariş adedi: boş.';
     if (e.tur === 'parametre') {
       const p = katalog && kendi(katalog.parametreler, e.ad) ? katalog.parametreler[e.ad] : null;
@@ -7616,7 +7643,10 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     satirlar.push({ tur: 'ara_toplam', kalem: 'Ara toplam', nasil: 'yukarıdaki kalemlerin toplamı', tutar: '', toplam: sayi(sonuc.ara_toplam) });
     for (const s of sonra) satirlar.push(kalemSatiri(s));
     satirlar.push({ tur: 'maliyet', kalem: 'Maliyet', nasil: [kisa(sonuc.ara_toplam)].concat(sonra.map(function (s) { return kisa(s.tutar); })).join(' + '), tutar: '', toplam: sayi(sonuc.maliyet) });
-    satirlar.push({ tur: 'kar', kalem: 'Kâr', nasil: kisa(sonuc.maliyet) + ' × ' + yuzdeGirdisi(sonuc.kar_yuzde), tutar: sayi(sonuc.kar), toplam: '' });
+    // Marjda satış önce kurulur (maliyet ÷ (1 − marj)), kâr farktır; markup'ta kâr maliyetin yüzdesidir.
+    const marj = sonuc.kar_esasi === 'satis';
+    satirlar.push({ tur: 'kar', kalem: marj ? 'Kâr (satış üzerinden ' + yuzdeGirdisi(sonuc.kar_yuzde) + ' marj)' : 'Kâr (maliyet üzerine ' + yuzdeGirdisi(sonuc.kar_yuzde) + ')',
+      nasil: marj ? kisa(sonuc.maliyet) + ' ÷ (1 − ' + yuzdeGirdisi(sonuc.kar_yuzde) + ') − ' + kisa(sonuc.maliyet) : kisa(sonuc.maliyet) + ' × ' + yuzdeGirdisi(sonuc.kar_yuzde), tutar: sayi(sonuc.kar), toplam: '' });
     satirlar.push({ tur: 'satis', kalem: 'Satış (adet başına)', nasil: kisa(sonuc.maliyet) + ' + ' + kisa(sonuc.kar), tutar: '', toplam: sayi(sonuc.hesaplanan_fiyat) });
     // Yuvarlama adımı varsa (A8) teklif fiyatı ayrı satır; sipariş toplamı teklif fiyatından.
     if (sonuc.yuvarlama) {
@@ -7644,7 +7674,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     })).join('\n') + '\n';
   }
 
-  return { haneli, sayi, para, birimMetni, kisa, yuzde, paraSimgesi, istekKur, girisHatasiMetni, eksikMetni, kalemAdi, satirEtiketi, nasilHesaplandi, kirilim, basliklar, sekmeli };
+  return { haneli, sayi, para, birimMetni, kisa, yuzde, yuzdeGirdisi, paraSimgesi, istekKur, girisHatasiMetni, eksikMetni, kalemAdi, satirEtiketi, nasilHesaplandi, kirilim, basliklar, sekmeli };
 });
 
 // Seçim ekranı (S-2, ön sekme): ürünü seç → ürünün alanları → bitmiş ürün fiyatı ve Excel gibi maliyet
@@ -7659,7 +7689,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   function kur(a) { api = a; }
 
   function hamAl(ad) {
-    if (!ek.ham[ad]) ek.ham[ad] = { alanlar: {}, kar_yuzde: '', adet: '' };
+    if (!ek.ham[ad]) ek.ham[ad] = { alanlar: {}, kar_yuzde: '', adet: '', kar_esasi: 'maliyet' };
     return ek.ham[ad];
   }
 
@@ -7727,8 +7757,14 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
           ekle(form, alan(etiket(a, a.ad), sec, a.aciklama || null));
         }
       }
+      // Kâr esası (kullanıcı, 3 Kasım): maliyet üzerine kâr (markup) ya da satış üzerinden brüt marj.
+      const marj = ham.kar_esasi === 'satis';
+      const esas = el('select', { 'data-urun-alan': 'kar_esasi', onchange: function () { ham.kar_esasi = esas.value; ek.imza = null; ciz(); } },
+        el('option', { value: 'maliyet', metin: 'Maliyet üzerine kâr (markup)' }), el('option', { value: 'satis', metin: 'Satış üzerinden marj' }));
+      esas.value = marj ? 'satis' : 'maliyet';
       ekle(form,
-        alan('Kâr %', api.sayiKutusu(ham.kar_yuzde, { placeholder: 'örn. 15', 'data-urun-alan': 'kar_yuzde' }, function (v) { ham.kar_yuzde = v; sonucCiz(); }), 'maliyetin yüzdesi'),
+        alan('Kâr nasıl?', esas, marj ? 'satış = maliyet ÷ (1 − marj); aynı yüzdede maliyet üzerine kârdan yüksek çıkar' : 'satış = maliyet × (1 + kâr)'),
+        alan(marj ? 'Marj %' : 'Kâr %', api.sayiKutusu(ham.kar_yuzde, { placeholder: 'örn. 15', 'data-urun-alan': 'kar_yuzde' }, function (v) { ham.kar_yuzde = v; sonucCiz(); }), marj ? 'satış fiyatının yüzdesi; 100\'ün altında' : 'maliyetin yüzdesi'),
         alan('Sipariş adedi', api.sayiKutusu(ham.adet, { placeholder: 'örn. 1000', 'data-urun-alan': 'adet' }, function (v) { ham.adet = v; sonucCiz(); }), 'binlik ayırıcı yazmayın: 1000'));
     }
     ek.sonucKap = el('div', { id: 'urun-sonuc', 'aria-live': 'polite' });
@@ -7786,7 +7822,9 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const p = UA.paraSimgesi(s.para_birimi);
     ekle(kutu, el('div', { sinif: 'fiyat' },
       el('div', null, el('span', { sinif: 'buyuk', 'data-urun-sonuc': 'birim_fiyat', metin: UA.para(s.birim_fiyat) + ' ' + p }), el('span', { sinif: 'soluk', metin: ' / adet' })),
-      el('div', { 'data-urun-sonuc': 'toplam', metin: 'Sipariş toplamı: ' + UA.para(s.toplam) + ' ' + p + ' (' + s.adet + ' adet × ' + UA.para(s.birim_fiyat) + ' ' + p + ')' })));
+      el('div', { 'data-urun-sonuc': 'toplam', metin: 'Sipariş toplamı: ' + UA.para(s.toplam) + ' ' + p + ' (' + s.adet + ' adet × ' + UA.para(s.birim_fiyat) + ' ' + p + ')' }),
+      // Brüt kâr teklif fiyatından (yuvarlama payı dahil); gerçekleşen marj satış üzerinden.
+      el('div', { sinif: 'soluk', 'data-urun-sonuc': 'brut_kar', metin: 'Brüt kâr: ' + UA.para(s.birim_brut_kar) + ' ' + p + ' / adet · toplam ' + UA.para(s.toplam_brut_kar) + ' ' + p + ' · gerçekleşen marj ' + UA.yuzdeGirdisi(s.gerceklesen_marj_yuzde) + ' (maliyet ' + UA.para(s.maliyet) + ' ' + p + ' / adet)' })));
     if (s.bayat_parametreler.length) {
       ekle(kutu, el('ul', { sinif: 'liste uyari-metni' }, s.kullanilan_parametreler.filter(function (g) { return g.bayat; }).map(function (g) {
         return el('li', { metin: 'BAYAT: ' + etiket(k.parametreler[g.ad], g.ad) + ' — son güncelleme ' + (g.alinma_tarihi ? A.tarihMetni(g.alinma_tarihi) : '?') + (g.gun_once === null ? '' : ' (' + g.gun_once + ' gün önce; ' + g.bayat_esigi + ' günden eskiyse bayat)') + '. ' + yeri(g.ad) + ' bölümünden yenileyin.' });
