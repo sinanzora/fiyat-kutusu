@@ -428,7 +428,7 @@ module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIM
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "3be89e7a7d9c3c35876b86c5bb7c4d59058be81da0b0f03997a62da565f4afd5" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "cd4f589291ab0549538d548854a5f7ba06124acfa3a947547183b167c5124dcb" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -3389,7 +3389,8 @@ const DAMGA = require('./damga.cjs');
 const U = require('./urun.cjs');
 
 const BICIM = 'fiyat-teklif-kaydi';
-const BICIM_SURUMU = 1;
+// 2 (3 Kasım): sonuçta kar_esasi ve brüt kâr alanları (F1-a); bayat fiyatlı kayıt yok (F1-b).
+const BICIM_SURUMU = 2;
 const ALANLAR = ['bicim', 'bicim_surumu', 'istek', 'sonuc', 'damga', 'ozet'];
 
 // Kanonik JSON'dan geçmiş derin kopya (JSON-güvenli olmayan değer KANONIK_* hatası verir).
@@ -3435,6 +3436,10 @@ function teklifKaydi(istek, sonuc) {
   if (!Sk.nesneMi(sonuc) || sonuc.durum !== 'tamam') throw hata('TEKLIF_SONUCU_TAMAM_DEGIL', { durum: Sk.nesneMi(sonuc) && typeof sonuc.durum === 'string' ? sonuc.durum : null });
   const alan = uyusmazlik(istek, sonuc);
   if (alan) throw hata('TEKLIF_ISTEK_UYUSMAZ', { alan });
+  // Eski (bayat) fiyatla hesap iç simülasyondur, teklif kaydı olmaz (kullanıcı kararı, 3 Kasım: tamamen
+  // engellenir; bayat onayı da açmaz). Yenilenecek parametreler hatada listelenir.
+  if (!Array.isArray(sonuc.bayat_parametreler)) throw hata('TEKLIF_SONUCU_TAMAM_DEGIL', { durum: 'bicim' });
+  if (sonuc.bayat_parametreler.length) throw hata('TEKLIF_BAYAT_FIYAT', { parametreler: sonuc.bayat_parametreler.slice() });
   const i = kopya(istek);
   const s = kopya(sonuc);
   return dondur({ bicim: BICIM, bicim_surumu: BICIM_SURUMU, istek: i, sonuc: s, damga: kopya(sonuc.damga), ozet: govdeOzeti(BICIM, BICIM_SURUMU, i, s) });
@@ -3444,7 +3449,8 @@ function teklifKaydi(istek, sonuc) {
 // yalnız sonuçta yer alan alanları (ürün, tarih, adet, kâr, seçimler) karşılaştırır; sayı alanları (en, boy,
 // GSM) sonuçta yoktur, oynanmaları yeniden hesapta SONUC_FARKLI olarak yakalanır. Neden kodları
 // sıralıdır: BICIM → ISTEK_UYUSMAZ → KATALOG_FARKLI ("doğru katalog sürümünü getir"; kayıt bozuk demek
-// değil) → CEKIRDEK_FARKLI → SONUC_FARKLI (aynı katalog ve çekirdek, farklı sonuç: gerçek uyuşmazlık).
+// değil) → CEKIRDEK_FARKLI → SONUC_FARKLI (aynı katalog ve çekirdek, farklı sonuç: gerçek uyuşmazlık) →
+// BAYAT_FIYAT (sonuç doğru ama hesap tarihinde eski fiyat var: teklif olamaz; 3 Kasım).
 function teklifKaydiDenetle(katalog, kayit) {
   const sonuc = function (neden) { return dondur({ gecerli: neden === null, neden }); };
   try {
@@ -3469,6 +3475,7 @@ function teklifKaydiDenetle(katalog, kayit) {
   if (kayit.damga.katalog_ozeti !== ozet) return sonuc('KATALOG_FARKLI');
   if (kayit.damga.cekirdek_surumu !== DAMGA.SURUM || kayit.damga.cekirdek_ozeti !== DAMGA.OZET) return sonuc('CEKIRDEK_FARKLI');
   if (kanonikJson(U.urunHesapla(katalog, kayit.istek)) !== kanonikJson(kayit.sonuc)) return sonuc('SONUC_FARKLI');
+  if (kayit.sonuc.bayat_parametreler.length) return sonuc('BAYAT_FIYAT');
   return sonuc(null);
 }
 
@@ -7846,14 +7853,25 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     const ileti = el('div', { role: 'status', 'aria-live': 'polite' });
     // Teklif kaydı (Fable v1.8 T-c): bağlamsız iç kayıt; maliyet ve kâr içerir, müşteriye gitmez.
     const UYARI = 'İç kayıt: maliyet kırılımı ve kâr içerir, müşteriye göndermeyin.';
+    // F1-b (kullanıcı kararı, 3 Kasım): eski fiyat varken ya da hesap tarihi bugün değilken hesap iç
+    // simülasyondur; teklif kaydı alınamaz (geçmiş tarih seçip bayatlıktan kaçılamasın). Çekirdek de reddeder.
+    const engel = s.bayat_parametreler.length
+      ? 'İç simülasyon: eski fiyat var, teklif kaydı alınamaz. Önce yukarıdaki BAYAT fiyatları yenileyin.'
+      : durum.hesap_tarihi !== api.bugun() ? 'İç simülasyon: hesap tarihi bugün değil; teklif kaydı yalnız bugünün fiyatlarıyla alınır.' : null;
     const teklifIndir = function () {
-      const kayit = C.teklifKaydi(r.istek, s);
+      let kayit;
+      try { kayit = C.teklifKaydi(r.istek, s); } catch (e) {
+        if (!e || !e.kod) throw e;
+        ileti.textContent = 'Teklif kaydı alınamadı: ' + A.kodMetni(Object.assign({ kod: e.kod }, e.ayrinti));
+        return;
+      }
       api.indir(JSON.stringify(JSON.parse(C.kanonikJson(kayit)), null, 2) + '\n', 'teklif-' + kayit.istek.urun + '-' + kayit.istek.hesap_tarihi + '.json');
       ileti.textContent = 'Teklif kaydı indirildi (özet ' + api.kisa(kayit.ozet) + '). ' + UYARI;
     };
-    ekle(kutu, el('div', { sinif: 'dugmeler' },
+    ekle(kutu, engel ? el('p', { sinif: 'ileti uyari', 'data-urun-teklif': 'engel', metin: engel }) : null,
+      el('div', { sinif: 'dugmeler' },
       el('button', { type: 'button', sinif: 'dugme', metin: 'Tabloyu kopyala (Excel\'e yapıştır)', onclick: function () { kopyala(UA.sekmeli(satirlar, s.para_birimi), ileti); } }),
-      el('button', { type: 'button', sinif: 'dugme ikincil', 'data-urun-teklif': 'indir', title: UYARI, metin: 'Teklif kaydını indir (.json)', onclick: teklifIndir })),
+      el('button', { type: 'button', sinif: 'dugme ikincil', 'data-urun-teklif': 'indir', title: engel || UYARI, disabled: !!engel, metin: 'Teklif kaydını indir (.json)', onclick: teklifIndir })),
     el('p', { sinif: 'soluk', metin: 'Teklif kaydı: bu hesabın isteği, sonucu ve damgası (CRM\'e aktarım için). ' + UYARI }),
     ileti,
     el('p', { sinif: 'soluk', metin: '"Tutar" sütununun toplamı satış fiyatıdır; her satır 4 haneye yuvarlanır ve toplamlar yuvarlanmış satırlardan kurulur. ≈ işaretli miktar 4 haneden uzundur, hesapta tam değeri kullanılır.' }),
