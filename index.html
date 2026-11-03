@@ -428,7 +428,7 @@ module.exports = { crmRevizyonAlanlari, sonuctanAlanlar, olcekli, CRM_PARA_BIRIM
     "./damga.cjs": function (module, exports, require) {
 'use strict';
 // ÜRETİLMİŞ DOSYA: elle düzenlemeyin; `npm run damga`.
-module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "de857b9caafeb9a1908f635c8fb59239510221fce947e65665b328b801e297aa" });
+module.exports = Object.freeze({ SURUM: "0.1.0", OZET: "1a1f653cc0b4f655764c4acb7133e86aaf8796c523c3c71e884ebc61da34a4d2" });
 
     },
     "./dogrula.cjs": function (module, exports, require) {
@@ -701,17 +701,6 @@ function dogrula(katalog, secenekler) {
       if (!ondalikMi(oz[ad])) engel('ONDALIK_HATALI', Object.assign({ alan: ad }, yer));
     }
   };
-  // F1 (3 Kasım): MOQ (boyut → en az adet, pozitif tamsayı) ve fiyatın içerdiği işlem adları.
-  const moqDenetle = function (moq, yer) {
-    for (const t of Object.keys(moq || {})) {
-      const my = Object.assign({ moq: t }, yer);
-      if (S.MOQ_TURLERI.indexOf(t) === -1) { engel('MOQ_GECERSIZ', my); continue; }
-      if (!ondalikMi(moq[t]) || D.oku(moq[t]) <= 0n || !D.tamsayiMi(D.oku(moq[t]))) engel('MOQ_GECERSIZ', my);
-    }
-  };
-  const icerirDenetle = function (icerir, yer) {
-    for (const ad of icerir || []) if (!S.adGecerliMi(ad)) engel('ISLEM_ADI_GECERSIZ', Object.assign({ islem: ad }, yer));
-  };
   // Ü1. Listeler: satır × sütun hücreleri parametredir; fiyat/tutar hücresi satırın birimini ve para
   //     birimini taşır (oran hücresinde para birimi yoktur).
   const listeler = katalog.listeler || {};
@@ -735,7 +724,6 @@ function dogrula(katalog, secenekler) {
       if (sutunAdlari.has(s.ad)) engel('LISTE_SUTUN_TEKRAR', sy);
       sutunAdlari.add(s.ad);
       if (!etiketVar(s)) engel('ETIKET_YOK', sy);
-      icerirDenetle(s.icerir, sy);
     }
     const yedekEngeli = U.listeYedekEngeli(l);
     if (yedekEngeli) engel(yedekEngeli.kod, { liste: listeAdi, sutun: yedekEngeli.sutun });
@@ -752,7 +740,6 @@ function dogrula(katalog, secenekler) {
       if (!S.GORUNTU_BIRIM_DESENI.test(r.birim)) engel('BIRIM_GECERSIZ', ry);
       if (S.PARA_BIRIMLERI.indexOf(r.para_birimi) === -1) engel('PARA_BIRIMI_GECERSIZ', ry);
       ozellikDenetle(r.ozellikler, ry);
-      moqDenetle(r.moq, ry);
       for (const sutun of sutunAdlari) if (!kendiAlani(r.hucreler, sutun)) engel('LISTE_HUCRE_YOK', Object.assign({ sutun }, ry));
       for (const sutun of Object.keys(r.hucreler)) {
         const hy = Object.assign({ sutun, parametre: r.hucreler[sutun] }, ry);
@@ -802,7 +789,6 @@ function dogrula(katalog, secenekler) {
     if (!sekil(function () { Sk.kategoriSekli(katAdi, kat); })) continue;
     bilinmeyen(kat, S.ALANLAR.kategori, { yer: 'kategori', kategori: katAdi });
     if (!etiketVar(kat)) engel('ETIKET_YOK', ky);
-    moqDenetle(kat.moq, ky);
     gecerliKategori[katAdi] = true;
   }
 
@@ -819,7 +805,6 @@ function dogrula(katalog, secenekler) {
     if (!etiketVar(tanim)) engel('ETIKET_YOK', uy);
     const pbGecerli = S.PARA_BIRIMLERI.indexOf(tanim.para_birimi) !== -1;
     if (!pbGecerli) engel('PARA_BIRIMI_GECERSIZ', uy);
-    moqDenetle(tanim.moq, uy);
     // Kategori birleşimi hesabınkiyle AYNI fonksiyondan (tek kaynak); birleşemeyen ürün engeldir.
     if (tanim.kategori !== undefined) {
       kullanilanKategori.add(tanim.kategori);
@@ -909,24 +894,12 @@ function dogrula(katalog, secenekler) {
         }
       }
       if (k.tip === 'formul' ? k.deger !== undefined : (k.ifade !== undefined || k.ara_toplama_girer !== undefined)) engel('KALEM_OZELLIGI_YERSIZ', ky);
-      if (k.tip === 'kg_basina' || k.tip === 'islem') agirlikGerekli = true;
-      // F1: tipe özgü alanlar (hesabın kuralıyla aynı): parti büyüklüğü partide; fire, esas, asgari tutar işlemde.
-      for (const [oz, tip] of [['parti_buyuklugu', 'parti_basina'], ['fire', 'islem'], ['esas', 'islem'], ['asgari_tutar', 'islem']]) {
-        if (k[oz] !== undefined && k.tip !== tip) engel('KALEM_OZELLIGI_YERSIZ', Object.assign({ ozellik: oz }, ky));
-      }
+      if (k.tip === 'kg_basina') agirlikGerekli = true;
+      // F1: parti büyüklüğü yalnız parti başına kalemde (hesabın kuralıyla aynı).
+      if (k.parti_buyuklugu !== undefined && k.tip !== 'parti_basina') engel('KALEM_OZELLIGI_YERSIZ', Object.assign({ ozellik: 'parti_buyuklugu' }, ky));
       if (k.tip === 'parti_basina') {
         if (k.parti_buyuklugu === undefined) engel('KALEM_OZELLIGI_EKSIK', Object.assign({ ozellik: 'parti_buyuklugu' }, ky));
         else parametreDenetle(k.parti_buyuklugu, 'parti_buyuklugu', null, ky);
-      }
-      if (k.islem !== undefined && !S.adGecerliMi(k.islem)) engel('ISLEM_ADI_GECERSIZ', Object.assign({ islem: k.islem }, ky));
-      if (k.tip === 'islem') {
-        if (k.islem === undefined) engel('KALEM_OZELLIGI_EKSIK', Object.assign({ ozellik: 'islem' }, ky));
-        if (k.esas !== undefined && S.ISLEM_ESASLARI.indexOf(k.esas) === -1) engel('ISLEM_ESASI_GECERSIZ', ky);
-        if (k.fire !== undefined) {
-          parametreDenetle(k.fire, 'yuzde', null, ky);
-          if (gecerliParam[k.fire]) for (const s of params[k.fire].degerler) { const f = D.oku(s.deger); if (f < 0n || f >= D.OLCEK) { engel('ISLEM_FIRESI_GECERSIZ', Object.assign({ parametre: k.fire }, ky)); break; } }
-        }
-        if (k.asgari_tutar !== undefined) parametreDenetle(k.asgari_tutar, 'siparis_basina', null, ky);
       }
       if (k.tip === 'formul') formulKalemleri.push({ k, ky, secenek, alan });
       else parametreDenetle(k.deger, k.tip, null, ky);
@@ -986,7 +959,6 @@ function dogrula(katalog, secenekler) {
         if (!listeden) {
           // Liste satırlarının adı, etiketi ve bilinmeyen alanı Ü1'de denetlendi.
           bilinmeyen(s, S.ALANLAR.urun_secenegi, Object.assign({ yer: 'urun_secenegi' }, sy));
-          moqDenetle(s.moq, sy);
           if (!adEngeli(s.ad, sy) && secAdlari.has(s.ad)) engel('SECENEK_AD_TEKRAR', sy);
           secAdlari.add(s.ad);
           if (!etiketVar(s)) engel('ETIKET_YOK', sy);
@@ -1000,7 +972,6 @@ function dogrula(katalog, secenekler) {
         if (a.tur === 'kumas') {
           if (s.kalemler !== undefined) engel('SECENEK_OZELLIGI_YERSIZ', Object.assign({ ozellik: 'kalemler' }, sy));
           if (s.sutun !== undefined) engel('SECENEK_OZELLIGI_YERSIZ', Object.assign({ ozellik: 'sutun' }, sy));
-          if (!listeden) icerirDenetle(s.icerir, sy);
           // Kumaş seçeneğinin kalemi yoktur; satır içi kumaşta özellik okuyan da yoktur (eni `kumas_eni_cm`).
           if (!listeden && s.ozellikler !== undefined) engel('SECENEK_OZELLIGI_YERSIZ', Object.assign({ ozellik: 'ozellikler' }, sy));
           if (S.KUMAS_BIRIMLERI.indexOf(s.birim) === -1) { engel('KUMAS_BIRIMI_GECERSIZ', sy); continue; }
@@ -1021,7 +992,7 @@ function dogrula(katalog, secenekler) {
             if (y) { parametreDenetle(y.taban, 'kumas', s.birim, syy); parametreDenetle(y.fark, 'kumas_fark', s.birim, syy); }
           }
         } else {
-          for (const oz of ['birim', 'fiyat', 'kumas_eni_cm', 'icerir']) if (s[oz] !== undefined) engel('SECENEK_OZELLIGI_YERSIZ', Object.assign({ ozellik: oz }, sy));
+          for (const oz of ['birim', 'fiyat', 'kumas_eni_cm']) if (s[oz] !== undefined) engel('SECENEK_OZELLIGI_YERSIZ', Object.assign({ ozellik: oz }, sy));
           if (s.sutun !== undefined && !sutunAlanlari.has(a0.ad)) engel('SECENEK_OZELLIGI_YERSIZ', Object.assign({ ozellik: 'sutun' }, sy));
           if (!listeden) ozellikDenetle(s.ozellikler, sy);
           const ks = s.kalemler || [];
@@ -3125,13 +3096,12 @@ function urunKalemiSekli(k, ad, kalip) {
   if (!nesneMi(k)) throw kBozuk('urun', ad, 'kalemler');
   for (const alan of ['kalem', 'tip']) metinAlan(k, alan, 'urun', ad);
   metinAlan(k, k.tip === 'formul' ? 'ifade' : 'deger', 'urun', ad, kalip === true && k.tip !== 'formul');
-  for (const alan of ['label_tr', 'label_en', 'matrah', 'bicim', 'aciklama', 'deger', 'ifade', 'parti_buyuklugu', 'islem', 'fire', 'esas', 'asgari_tutar']) metinAlan(k, alan, 'urun', ad, true);
+  for (const alan of ['label_tr', 'label_en', 'matrah', 'bicim', 'aciklama', 'deger', 'ifade', 'parti_buyuklugu']) metinAlan(k, alan, 'urun', ad, true);
   if (!istege(k, 'ara_toplama_girer') && typeof k.ara_toplama_girer !== 'boolean') throw kBozuk('urun', ad, 'ara_toplama_girer');
 }
 
-// F1 (3 Kasım): MOQ (ad → tamsayı metni) ve "tahmini" işareti (boolean) ürün, kategori, seçenek ve liste satırında.
-function moqTahminiSekli(x, yer, ad) {
-  if (!istege(x, 'moq') && !metinSozluguMu(x.moq)) throw kBozuk(yer, ad, 'moq');
+// Faz 2 (3 Kasım): "tahmini" işareti (boolean; onaylı reçete yok) ürün, kategori, seçenek ve liste satırında.
+function tahminiSekli(x, yer, ad) {
   if (!istege(x, 'tahmini') && typeof x.tahmini !== 'boolean') throw kBozuk(yer, ad, 'tahmini');
 }
 
@@ -3144,8 +3114,7 @@ function urunSecenegiSekli(s, ad, tur) {
   if (!nesneMi(s)) throw kBozuk('urun', ad, 'secenekler');
   metinAlan(s, 'ad', 'urun', ad);
   for (const alan of ['label_tr', 'label_en', 'birim', 'fiyat', 'kumas_eni_cm', 'sutun', 'aciklama']) metinAlan(s, alan, 'urun', ad, true);
-  metinDizisi(s, 'icerir', 'urun', ad, true);
-  moqTahminiSekli(s, 'urun', ad);
+  tahminiSekli(s, 'urun', ad);
   if (tur === 'kumas') for (const alan of ['birim', 'fiyat']) metinAlan(s, alan, 'urun', ad);
   if (!istege(s, 'ozellikler') && !metinSozluguMu(s.ozellikler)) throw kBozuk('urun', ad, 'ozellikler');
   if (!istege(s, 'kalemler')) {
@@ -3180,7 +3149,6 @@ function listeSekli(ad, l) {
     if (!nesneMi(s)) throw kBozuk('liste', ad, 'sutunlar');
     metinAlan(s, 'ad', 'liste', ad);
     for (const alan of ['label_tr', 'label_en', 'tur']) metinAlan(s, alan, 'liste', ad, true);
-    metinDizisi(s, 'icerir', 'liste', ad, true);
     // Yedek: hücre boşsa fiyat = taban sütunu + fark sütunu (ikisi de sütun adı).
     if (!istege(s, 'yedek')) {
       const y = kendiAlani(s, 'yedek') ? s.yedek : undefined;
@@ -3193,7 +3161,7 @@ function listeSekli(ad, l) {
     if (!nesneMi(s)) throw kBozuk('liste', ad, 'satirlar');
     for (const alan of ['ad', 'birim', 'para_birimi']) metinAlan(s, alan, 'liste', ad);
     for (const alan of ['label_tr', 'label_en', 'aciklama']) metinAlan(s, alan, 'liste', ad, true);
-    moqTahminiSekli(s, 'liste', ad);
+    tahminiSekli(s, 'liste', ad);
     for (const alan of ['hucreler', 'ozellikler']) {
       if (alan === 'ozellikler' && istege(s, alan)) continue;
       if (!metinSozluguMu(kendiAlani(s, alan) ? s[alan] : undefined)) throw kBozuk('liste', ad, alan);
@@ -3230,7 +3198,7 @@ function urunSekli(ad, u) {
   metinAlan(u, 'para_birimi', 'urun', ad);
   for (const alan of ['label_tr', 'label_en', 'aciklama', 'kur', 'yuvarlama_adimi', 'kategori', 'kumas_sutunu', 'kumas_sutun_alani', 'dagilim_alani']) metinAlan(u, alan, 'urun', ad, true);
   metinDizisi(u, 'kurlar', 'urun', ad, true);
-  moqTahminiSekli(u, 'urun', ad);
+  tahminiSekli(u, 'urun', ad);
   govdeSekli(u, 'urun', ad, true);
 }
 
@@ -3239,7 +3207,7 @@ function urunSekli(ad, u) {
 function kategoriSekli(ad, k) {
   if (!nesneMi(k)) throw kBozuk('kategori', ad);
   for (const alan of ['label_tr', 'label_en', 'aciklama']) metinAlan(k, alan, 'kategori', ad, true);
-  moqTahminiSekli(k, 'kategori', ad);
+  tahminiSekli(k, 'kategori', ad);
   govdeSekli(k, 'kategori', ad, false);
 }
 
@@ -3249,9 +3217,6 @@ function urunIstekSekli(istek) {
   for (const alan of ['urun', 'hesap_tarihi']) if (!metinMi(istek[alan])) throw iBozuk(alan);
   for (const alan of ['kar_yuzde', 'adet', 'kar_esasi']) if (istek[alan] !== undefined && !metinMi(istek[alan])) throw iBozuk(alan);
   metinSozlugu(istek.alanlar, 'alanlar');
-  for (const alan of ['renk_dagilimi', 'tasarim_dagilimi']) {
-    if (istek[alan] !== undefined && !(Array.isArray(istek[alan]) && istek[alan].every(metinMi))) throw iBozuk(alan);
-  }
   if (istek.bayat_onaylari !== undefined && !(Array.isArray(istek.bayat_onaylari) && istek.bayat_onaylari.every(metinMi))) {
     throw iBozuk('bayat_onaylari');
   }
@@ -3281,13 +3246,8 @@ const DURUMLAR = Object.freeze(['taslak', 'yayinlandi']);
 const URUN_ALAN_TURLERI = Object.freeze(['sayi', 'kumas', 'secim']);
 // `formul`: kullanıcının yazdığı ifade (formül dili); öbürleri kısayoldur (Fable v1.4 K2).
 // F1 (3 Kasım): siparis_basina = sipariş başına sabit tutar ÷ adet; parti_basina = ⌈adet ÷ parti büyüklüğü⌉ ×
-// parti bedeli ÷ adet; islem = boya/terbiye gibi işlem, kg ücreti işlem GİRİŞ kilosu üzerinden (kullanıcı kararı).
-const KALEM_TIPLERI = Object.freeze(['adet_basina', 'kg_basina', 'yuzde', 'formul', 'siparis_basina', 'parti_basina', 'islem']);
-// İşlem kaleminin ücret esası: işleme giren kilo (varsayılan) ya da işlemden çıkan kilo.
-const ISLEM_ESASLARI = Object.freeze(['giris_kg', 'cikis_kg']);
-const VARSAYILAN_ISLEM_ESASI = 'giris_kg';
-// MOQ boyutları: sipariş toplamı, renk başına, tasarım başına en az adet.
-const MOQ_TURLERI = Object.freeze(['siparis', 'renk', 'tasarim']);
+// parti bedeli ÷ adet. Boya/terbiye işlem kalemi yoktur: zincir boyalı, konfeksiyona hazır kumaştan başlar (kullanıcı).
+const KALEM_TIPLERI = Object.freeze(['adet_basina', 'kg_basina', 'yuzde', 'formul', 'siparis_basina', 'parti_basina']);
 // Sabit gider parametrelerinin birimi.
 const SIPARIS_GIDER_BIRIMI = 'siparis';
 const PARTI_GIDER_BIRIMI = 'parti';
@@ -3348,18 +3308,17 @@ const ALANLAR = Object.freeze({
   marj: ['asgari_adet', 'kademeler'],
   kademe: ['alt', 'ust', 'oran'],
   urun: ['label_tr', 'label_en', 'para_birimi', 'alanlar', 'ara_degerler', 'kalemler', 'aciklama', 'kur', 'kurlar', 'yuvarlama_adimi',
-    'kategori', 'kumas_sutunu', 'kumas_sutun_alani', 'moq', 'tahmini', 'dagilim_alani'],
-  kategori: ['label_tr', 'label_en', 'aciklama', 'alanlar', 'ara_degerler', 'kalemler', 'moq', 'tahmini'],
+    'kategori', 'kumas_sutunu', 'kumas_sutun_alani', 'tahmini', 'dagilim_alani'],
+  kategori: ['label_tr', 'label_en', 'aciklama', 'alanlar', 'ara_degerler', 'kalemler', 'tahmini'],
   urun_alani: ['ad', 'tur', 'label_tr', 'label_en', 'birim', 'min', 'max', 'adim', 'secenekler', 'aciklama',
     'liste', 'satirlar', 'sutun', 'sutun_alani', 'kalem', 'kumas_ozelligi'],
-  urun_secenegi: ['ad', 'label_tr', 'label_en', 'birim', 'fiyat', 'kumas_eni_cm', 'kalemler', 'aciklama', 'sutun', 'ozellikler', 'icerir', 'moq', 'tahmini'],
+  urun_secenegi: ['ad', 'label_tr', 'label_en', 'birim', 'fiyat', 'kumas_eni_cm', 'kalemler', 'aciklama', 'sutun', 'ozellikler', 'tahmini'],
   liste: ['label_tr', 'label_en', 'aciklama', 'sutunlar', 'satirlar'],
-  liste_sutunu: ['ad', 'label_tr', 'label_en', 'tur', 'yedek', 'icerir'],
-  liste_satiri: ['ad', 'label_tr', 'label_en', 'birim', 'para_birimi', 'hucreler', 'ozellikler', 'aciklama', 'moq', 'tahmini'],
+  liste_sutunu: ['ad', 'label_tr', 'label_en', 'tur', 'yedek'],
+  liste_satiri: ['ad', 'label_tr', 'label_en', 'birim', 'para_birimi', 'hucreler', 'ozellikler', 'aciklama', 'tahmini'],
   genel_ayarlar: ['parametreler', 'kur', 'kurlar', 'yuvarlama_adimi'],
   urun_kalemi: ['kalem', 'label_tr', 'label_en', 'tip', 'deger', 'matrah', 'bicim', 'aciklama', 'ifade', 'ara_toplama_girer',
-    'parti_buyuklugu', 'islem', 'fire', 'esas', 'asgari_tutar'],
-  moq: ['siparis', 'renk', 'tasarim'],
+    'parti_buyuklugu'],
   ara_deger: ['ad', 'ifade', 'birim', 'label_tr', 'label_en'],
 });
 
@@ -3400,7 +3359,7 @@ module.exports = {
   BICIM, BICIM_SURUMU, PARA_BIRIMLERI, KAPSAMLAR, DUGUM_TURLERI, PARAMETRE_TURLERI, DURUMLAR,
   AYRILMIS_ADLAR, SIPARIS_BIRIMI, YOL_BIRIMI, AYRILMIS_BIRIMLER, AD_DESENI, AD_UZUNLUK, ANAHTAR_DESENI, BIRIM_DESENI, GORUNTU_BIRIM_DESENI,
   YASAK_ANAHTARLAR, ALANLAR, SINIRLAR,
-  URUN_ALAN_TURLERI, KALEM_TIPLERI, MATRAHLAR, VARSAYILAN_MATRAH, YUZDE_BICIMLERI, VARSAYILAN_YUZDE_BICIMI, KUMAS_BIRIMLERI, URUN_AGIRLIK, URUN_ALAN, URUN_KUMAS_KALEMI, URUN_HANE, KAR_ESASLARI, VARSAYILAN_KAR_ESASI, KUR_KAYNAGI, ISLEM_ESASLARI, VARSAYILAN_ISLEM_ESASI, MOQ_TURLERI, SIPARIS_GIDER_BIRIMI, PARTI_GIDER_BIRIMI,
+  URUN_ALAN_TURLERI, KALEM_TIPLERI, MATRAHLAR, VARSAYILAN_MATRAH, YUZDE_BICIMLERI, VARSAYILAN_YUZDE_BICIMI, KUMAS_BIRIMLERI, URUN_AGIRLIK, URUN_ALAN, URUN_KUMAS_KALEMI, URUN_HANE, KAR_ESASLARI, VARSAYILAN_KAR_ESASI, KUR_KAYNAGI, SIPARIS_GIDER_BIRIMI, PARTI_GIDER_BIRIMI,
   adGecerliMi,
 };
 
@@ -3464,8 +3423,8 @@ const U = require('./urun.cjs');
 
 const BICIM = 'fiyat-teklif-kaydi';
 // 2 (3 Kasım): sonuçta kar_esasi ve brüt kâr alanları (F1-a); bayat fiyatlı kayıt yok (F1-b).
-// 3 (3 Kasım): istekte renk/tasarım dağılımı; sonuçta moq, tahmini, okunmayan_alanlar ve yeni kalem satırları
-// (sipariş/parti başına, işlem); MOQ altı, eksik dağılım ve tahmini sarfiyatla kayıt yok.
+// 3 (3 Kasım): sonuçta tahmini, okunmayan_alanlar ve yeni kalem satırları (sipariş/parti başına); tahmini
+// sarfiyatla kayıt yok.
 const BICIM_SURUMU = 3;
 const ALANLAR = ['bicim', 'bicim_surumu', 'istek', 'sonuc', 'damga', 'ozet'];
 
@@ -3503,10 +3462,6 @@ function uyusmazlik(istek, sonuc) {
   return null;
 }
 
-function moqEngeli(sonuc) {
-  if (!Sk.nesneMi(sonuc.moq) || !Array.isArray(sonuc.moq.ihlaller) || !Array.isArray(sonuc.moq.eksik_dagilim)) throw hata('TEKLIF_SONUCU_TAMAM_DEGIL', { durum: 'bicim' });
-  return sonuc.moq.ihlaller.length > 0 || sonuc.moq.eksik_dagilim.length > 0;
-}
 function tahminiMi(sonuc) {
   if (!Array.isArray(sonuc.tahmini)) throw hata('TEKLIF_SONUCU_TAMAM_DEGIL', { durum: 'bicim' });
   return sonuc.tahmini.length > 0;
@@ -3525,8 +3480,6 @@ function teklifKaydi(istek, sonuc) {
   // engellenir; bayat onayı da açmaz). Yenilenecek parametreler hatada listelenir.
   if (!Array.isArray(sonuc.bayat_parametreler)) throw hata('TEKLIF_SONUCU_TAMAM_DEGIL', { durum: 'bicim' });
   if (sonuc.bayat_parametreler.length) throw hata('TEKLIF_BAYAT_FIYAT', { parametreler: sonuc.bayat_parametreler.slice() });
-  // MOQ altı ya da eksik dağılım: istisna yalnız yetkili onayıyla CRM'de (Fable FH5); kutu kayıt kurmaz.
-  if (moqEngeli(sonuc)) throw hata('TEKLIF_MOQ', { ihlaller: kopya(sonuc.moq.ihlaller), eksik_dagilim: sonuc.moq.eksik_dagilim.slice() });
   if (tahminiMi(sonuc)) throw hata('TEKLIF_TAHMINI', { kaynaklar: kopya(sonuc.tahmini) });
   const i = kopya(istek);
   const s = kopya(sonuc);
@@ -3538,7 +3491,7 @@ function teklifKaydi(istek, sonuc) {
 // GSM) sonuçta yoktur, oynanmaları yeniden hesapta SONUC_FARKLI olarak yakalanır. Neden kodları
 // sıralıdır: BICIM → ISTEK_UYUSMAZ → KATALOG_FARKLI ("doğru katalog sürümünü getir"; kayıt bozuk demek
 // değil) → CEKIRDEK_FARKLI → SONUC_FARKLI (aynı katalog ve çekirdek, farklı sonuç: gerçek uyuşmazlık) →
-// BAYAT_FIYAT (sonuç doğru ama hesap tarihinde eski fiyat var: teklif olamaz; 3 Kasım) → MOQ_ALTI → TAHMINI.
+// BAYAT_FIYAT (sonuç doğru ama hesap tarihinde eski fiyat var: teklif olamaz; 3 Kasım) → TAHMINI.
 function teklifKaydiDenetle(katalog, kayit) {
   const sonuc = function (neden) { return dondur({ gecerli: neden === null, neden }); };
   try {
@@ -3564,7 +3517,6 @@ function teklifKaydiDenetle(katalog, kayit) {
   if (kayit.damga.cekirdek_surumu !== DAMGA.SURUM || kayit.damga.cekirdek_ozeti !== DAMGA.OZET) return sonuc('CEKIRDEK_FARKLI');
   if (kanonikJson(U.urunHesapla(katalog, kayit.istek)) !== kanonikJson(kayit.sonuc)) return sonuc('SONUC_FARKLI');
   if (kayit.sonuc.bayat_parametreler.length) return sonuc('BAYAT_FIYAT');
-  if (moqEngeli(kayit.sonuc)) return sonuc('MOQ_ALTI');
   if (tahminiMi(kayit.sonuc)) return sonuc('TAHMINI');
   return sonuc(null);
 }
@@ -3647,11 +3599,10 @@ function beklenenParametre(tip, kumasBirimi, pb) {
   if (tip === 'kumas_fark') return { tur: 'sabit', birim: kumasBirimi, para: 'para_birimli' };
   if (tip === 'adet_basina') return { tur: 'sabit', birim: 'adet', para: 'para_birimli' };
   if (tip === 'kg_basina') return { tur: 'sabit', birim: 'kg', para: 'para_birimli' };
-  // F1 (3 Kasım): sipariş/parti başına sabit gider, parti büyüklüğü (adet, para birimsiz), işlemin kg ücreti.
+  // F1 (3 Kasım): sipariş/parti başına sabit gider, parti büyüklüğü (adet, para birimsiz).
   if (tip === 'siparis_basina') return { tur: 'sabit', birim: S.SIPARIS_GIDER_BIRIMI, para: 'para_birimli' };
   if (tip === 'parti_basina') return { tur: 'sabit', birim: S.PARTI_GIDER_BIRIMI, para: 'para_birimli' };
   if (tip === 'parti_buyuklugu') return { tur: 'sabit', birim: 'adet', para: 'yok' };
-  if (tip === 'islem') return { tur: 'sabit', birim: 'kg', para: 'para_birimli' };
   if (tip === 'kur') return { tur: 'sabit', birim: kumasBirimi || S.KUR_KAYNAGI + '/' + pb, para: 'yok' };
   if (tip === 'yuvarlama') return { tur: 'sabit', birim: null, para: 'urun' };
   // Formül kalemi her türden parametre okur; para birimsiz ya da para birimli (v1.6 K2-a); birden çok para
@@ -3779,9 +3730,6 @@ function urunGenislet(katalog, urunAdi, u) {
       if (yedekEngeli) throw hata(yedekEngeli.kod, Object.assign({ sutun: yedekEngeli.sutun }, yer));
       const sutunlar = l.sutunlar.map(function (s) { return s.ad; });
       const farklar = l.sutunlar.filter(function (s) { return s.tur === 'fark'; }).map(function (s) { return s.ad; });
-      // F1-e: fiyat sütununun içerdiği işlemler (boyalı/mamul fiyat: boyama, terbiye...): çifte maliyet denetimi.
-      const icerirler = {};
-      for (const c of l.sutunlar) if (c.icerir !== undefined) icerirler[c.ad] = c.icerir.slice();
       const satirlar = a.satirlar === undefined ? l.satirlar : a.satirlar.map(function (ad) {
         const s = l.satirlar.find(function (x) { return x.ad === ad; });
         if (!s) throw hata('LISTE_SATIRI_YOK', Object.assign({ satir: ad }, yer));
@@ -3803,7 +3751,7 @@ function urunGenislet(katalog, urunAdi, u) {
           const satir = { liste: a.liste, satir: s.ad, birim: s.birim, para_birimi: s.para_birimi };
           const secenek = Object.assign({ ad: s.ad }, etiketleri(s), { liste_satiri: satir },
             s.ozellikler !== undefined ? { ozellikler: Object.assign({}, s.ozellikler) } : {},
-            s.moq !== undefined ? { moq: Object.assign({}, s.moq) } : {}, s.tahmini !== undefined ? { tahmini: s.tahmini } : {});
+            s.tahmini !== undefined ? { tahmini: s.tahmini } : {});
           if (a.tur === 'secim') return Object.assign(secenek, { kalemler: [formulKalibi ? Object.assign({}, a.kalem) : Object.assign({}, a.kalem, { deger: s.hucreler[a.sutun] })] });
           const oz = s.ozellikler || {};
           // Yedekli sütun → { taban, fark } hücre parametreleri; fark sütunları fiyat sütunu olarak seçilemez.
@@ -3812,7 +3760,6 @@ function urunGenislet(katalog, urunAdi, u) {
           return Object.assign(secenek, { birim: s.birim, fiyatlar: Object.assign({}, s.hucreler) },
             farklar.length ? { fark_sutunlari: farklar.slice() } : {},
             Object.keys(yedekler).length ? { yedekler } : {},
-            Object.keys(icerirler).length ? { icerirler } : {},
             kendiAlani(oz, 'kumas_eni_cm') ? { kumas_eni_cm: oz.kumas_eni_cm } : {});
         }),
       });
@@ -4189,7 +4136,6 @@ function hesaplaIc(katalog, istek, ozetler) {
   const kumasYuzde = [];
   const tutarlar = [];
   const araYuzde = [];
-  const islemler = []; // F1-f: işlem kalemleri (aktif sırasıyla zincir)
   for (const x of aktif) {
     const k = x.k;
     if (kalemAdlari.has(k.kalem)) throw hata('URUN_KALEM_TEKRAR', { urun: urunAdi, kalem: k.kalem });
@@ -4203,48 +4149,13 @@ function hesaplaIc(katalog, istek, ozetler) {
     if (k.tip === 'formul' ? k.deger !== undefined : (k.ifade !== undefined || k.ara_toplama_girer !== undefined)) {
       throw hata('KALEM_OZELLIGI_YERSIZ', { urun: urunAdi, kalem: k.kalem });
     }
-    // F1: tipe özgü alanlar yalnız kendi tipinde (parti büyüklüğü partide; fire, esas, asgari tutar işlemde).
-    for (const [oz, tip] of [['parti_buyuklugu', 'parti_basina'], ['fire', 'islem'], ['esas', 'islem'], ['asgari_tutar', 'islem']]) {
-      if (k[oz] !== undefined && k.tip !== tip) throw hata('KALEM_OZELLIGI_YERSIZ', { urun: urunAdi, kalem: k.kalem, ozellik: oz });
-    }
+    // F1: parti büyüklüğü yalnız parti başına kalemde.
+    if (k.parti_buyuklugu !== undefined && k.tip !== 'parti_basina') throw hata('KALEM_OZELLIGI_YERSIZ', { urun: urunAdi, kalem: k.kalem, ozellik: 'parti_buyuklugu' });
     if (k.tip === 'parti_basina' && k.parti_buyuklugu === undefined) throw hata('KALEM_OZELLIGI_EKSIK', { urun: urunAdi, kalem: k.kalem, ozellik: 'parti_buyuklugu' });
-    if (k.tip === 'islem' && k.islem === undefined) throw hata('KALEM_OZELLIGI_EKSIK', { urun: urunAdi, kalem: k.kalem, ozellik: 'islem' });
-    if (k.islem !== undefined && !S.adGecerliMi(k.islem)) throw hata('ISLEM_ADI_GECERSIZ', { urun: urunAdi, kalem: k.kalem });
-    if (k.tip === 'islem' && S.ISLEM_ESASLARI.indexOf(k.esas === undefined ? S.VARSAYILAN_ISLEM_ESASI : k.esas) === -1) throw hata('ISLEM_ESASI_GECERSIZ', { urun: urunAdi, kalem: k.kalem });
-    if (k.tip === 'islem') islemler.push(x);
     if (k.tip !== 'yuzde') tutarlar.push(x);
     else if (matrahi(k) === 'kumas') kumasYuzde.push(x);
     else araYuzde.push(x);
   }
-  // F1-f: işlem zinciri (boya, yıkama, ram...). Son işlemin çıkışı ürünün ağırlığıdır (agirlik_kg); her işlemin
-  // girişi = çıkış ÷ (1 − fire) (fire GİRİŞ kilosuna oranla ağırlık kaybı: çıkış = giriş × (1 − fire)); önceki
-  // işlemin çıkışı sonrakinin girişidir. Kg kumaş zincirin ilk girişi kadar alınır. Ücret esası işleme giren kilo
-  // (kullanıcı kararı, 3 Kasım) ya da `esas: cikis_kg`.
-  const islemKg = []; // işlem başına { giris, cikis, fire } ya da null (eksik)
-  let kumasKg = null;
-  if (islemler.length) {
-    // Zincir kesirle tutulur (değer = pay × OLCEK ÷ payda); her giriş TEK yuvarlamayla iner (ara yuvarlama birikmez).
-    const agirlik = araDeger(S.URUN_AGIRLIK, islemler[islemler.length - 1].k.kalem);
-    let pay = agirlik;
-    let payda = D.OLCEK;
-    let cikis = agirlik;
-    for (let i = islemler.length - 1; i >= 0; i--) {
-      const k = islemler[i].k;
-      let f = 0n;
-      if (k.fire !== undefined) {
-        f = parametreOku(k.fire, 'yuzde');
-        if (f !== null && (f < 0n || f >= D.OLCEK)) throw hata('ISLEM_FIRESI_GECERSIZ', { urun: urunAdi, kalem: k.kalem, ad: k.fire });
-      }
-      if (cikis === null || f === null) { islemKg[i] = null; cikis = null; continue; }
-      pay *= D.OLCEK;
-      payda *= D.OLCEK - f;
-      const giris = D.kesirdenHane(pay, payda, D.OLCEK_HANE);
-      islemKg[i] = { giris, cikis, fire: f };
-      cikis = giris;
-    }
-    kumasKg = cikis;
-  }
-
   // 4. Kumaş satırı. Fiyat parametresi: satır içi seçenekte `fiyat`; listeden gelen seçenekte fiyat
   //    sütunu ya şablonda sabit (`sutun`) ya da bir seçim alanının seçeneğinden (`sutun_alani`, A7).
   let kumasTutari = null;
@@ -4274,12 +4185,6 @@ function hesaplaIc(katalog, istek, ozetler) {
       if ((kumas.fark_sutunlari || []).indexOf(sutun) !== -1) throw hata('LISTE_SUTUN_FARK', Object.assign({ sutun }, kumasYer));
       fiyatAdi = kumas.fiyatlar[sutun];
     }
-  }
-  // F1-e: kumaş fiyatı bir işlemi zaten içeriyorsa (boyalı/mamul fiyat: `icerir`) aynı işlemi taşıyan kalem çifte
-  // maliyettir: fiyat yok, kalem ve işlem eksiklerde (geçersiz birleşim sessizce hesaplanmaz).
-  if (kumas) {
-    const icerir = sutun !== null ? ((kumas.icerirler || {})[sutun] || []) : (kumas.icerir || []);
-    for (const x of aktif) if (x.k.islem !== undefined && icerir.indexOf(x.k.islem) !== -1) eksikEkle({ tur: 'cifte_islem', ad: x.k.kalem, neden: x.k.islem });
   }
   if (kumas && fiyatAdi !== null) {
     const kaynak = Object.assign({ tur: 'secenek', alan: kumasAlani.ad, secenek: kumas.ad }, kumas.liste_satiri ? { liste: kumas.liste_satiri.liste } : {});
@@ -4333,7 +4238,7 @@ function hesaplaIc(katalog, istek, ozetler) {
     let tutar = null;
     let kaynakTutar = null;
     if (kumas.birim === 'kg') {
-      miktar = islemler.length ? kumasKg : araDeger(S.URUN_AGIRLIK, S.URUN_KUMAS_KALEMI);
+      miktar = araDeger(S.URUN_AGIRLIK, S.URUN_KUMAS_KALEMI);
       if (fiyat !== null && miktar !== null && k !== null) {
         tutar = D.kesirdenHane(fiyat * c * miktar, D.OLCEK * k, HANE);
         if (!ek.fiyat_kaynagi) kaynakTutar = D.kesirdenHane(fiyat * miktar, OO, D.OLCEK_HANE);
@@ -4475,28 +4380,6 @@ function hesaplaIc(katalog, istek, ozetler) {
         satirEkle(Object.assign(ortakAlanlar(x), { miktar: n * D.OLCEK, miktar_birimi: 'parti', ara_toplama_girer: true, tutar: D.kesirdenHane(birimTutar * c * n * D.OLCEK, k * adet, HANE) }, kurAlanlari(ad, birimTutar * n)));
         Object.assign(satirlar[satirlar.length - 1], { parti_parametresi: x.k.parti_buyuklugu, parti_buyuklugu: kullanilan[x.k.parti_buyuklugu].goruntu.deger, adet: D.metne(adet, 0) });
       }
-    } else if (x.k.tip === 'islem') {
-      const kg = islemKg[islemler.indexOf(x)];
-      const esas = x.k.esas === undefined ? S.VARSAYILAN_ISLEM_ESASI : x.k.esas;
-      if (birimTutar !== null && k !== null && kg) {
-        const miktar = esas === 'cikis_kg' ? kg.cikis : kg.giris;
-        let tutar = D.kesirdenHane(birimTutar * miktar * c, D.OLCEK * k, HANE);
-        let asgari = false;
-        // En az işlem bedeli (sipariş başına; ör. en az parti bedeli): sipariş toplamı altındaysa bedel adede bölünür.
-        if (x.k.asgari_tutar !== undefined) {
-          const m = parametreOku(x.k.asgari_tutar, 'siparis_basina');
-          const km = m === null ? null : bolen(x.k.asgari_tutar);
-          if (m === null || km === null || adet === null) tutar = null;
-          else {
-            const alt = D.kesirdenHane(m * carpan(x.k.asgari_tutar) * D.OLCEK, km * adet, HANE);
-            if (alt > tutar) { tutar = alt; asgari = true; }
-          }
-        }
-        if (tutar !== null) {
-          satirEkle(Object.assign(ortakAlanlar(x), { miktar, miktar_birimi: 'kg', ara_toplama_girer: true, tutar }, kurAlanlari(ad, D.kesirdenHane(birimTutar * miktar, OO, D.OLCEK_HANE))));
-          Object.assign(satirlar[satirlar.length - 1], { islem: x.k.islem, islem_esasi: esas, islem_giris_kg: D.metne(kg.giris, D.OLCEK_HANE), islem_cikis_kg: D.metne(kg.cikis, D.OLCEK_HANE), islem_fire: D.metne(kg.fire, D.OLCEK_HANE), asgari_uygulandi: asgari });
-        }
-      }
     } else {
       const agirlik = araDeger(S.URUN_AGIRLIK, x.k.kalem);
       if (birimTutar !== null && agirlik !== null && k !== null) {
@@ -4518,43 +4401,11 @@ function hesaplaIc(katalog, istek, ozetler) {
   const parametreGoruntuleri = Object.keys(kullanilan).sort().map(function (ad) { return kullanilan[ad].goruntu; });
   const secimler = {};
   for (const a of u.alanlar) if (secilen[a.ad]) secimler[a.ad] = secilen[a.ad].ad;
-  // F1-d: MOQ — ürün, kategori ve seçilen seçeneklerin kuralı, her boyutta en sıkısı (en büyük). Kutu kuralın
-  // GİRDİSİNİ üretir; istisna onayı CRM'dedir (Fable FH5). İhlal ya da eksik dağılım varsa teklif kaydı yok.
-  const kategori = tanim.kategori !== undefined ? al(katalog.kategoriler || {}, tanim.kategori) : null;
-  const kurallar = [{ x: tanim, yer: { tur: 'urun' } }].concat(kategori ? [{ x: kategori, yer: { tur: 'kategori', kategori: tanim.kategori } }] : [],
-    u.alanlar.filter(function (a) { return secilen[a.ad]; }).map(function (a) { return { x: secilen[a.ad], yer: { tur: 'secenek', alan: a.ad, secenek: secilen[a.ad].ad } }; }));
-  const moqKural = Object.create(null);
-  for (const kx of kurallar) {
-    for (const t of Object.keys(kx.x.moq || {})) {
-      if (S.MOQ_TURLERI.indexOf(t) === -1) throw hata('MOQ_GECERSIZ', Object.assign({ urun: urunAdi, moq: t }, kx.yer));
-      const v = sayiOku(kx.x.moq[t], 'moq');
-      if (v <= 0n || !D.tamsayiMi(v)) throw hata('MOQ_GECERSIZ', Object.assign({ urun: urunAdi, moq: t }, kx.yer));
-      if (!moqKural[t] || v > moqKural[t]) moqKural[t] = v;
-    }
-  }
-  const tam = function (v) { return D.metne(v, 0); };
-  const ihlaller = [];
-  const eksikDagilim = [];
-  if (adet !== null && moqKural.siparis && adet < moqKural.siparis) ihlaller.push({ tur: 'siparis', asgari: tam(moqKural.siparis), verilen: tam(adet) });
-  for (const t of ['renk', 'tasarim']) {
-    const d = istek[t + '_dagilimi'];
-    let adetler = null;
-    if (d !== undefined && d.length) {
-      adetler = d.map(function (m) { const v = sayiOku(m, t + '_dagilimi'); return v > 0n && D.tamsayiMi(v) ? v : null; });
-      if (adetler.indexOf(null) !== -1) { eksikEkle({ tur: 'dagilim', ad: t, neden: 'gecersiz' }); adetler = null; }
-      else if (adet !== null && adetler.reduce(function (a, b) { return a + b; }, 0n) !== adet) eksikEkle({ tur: 'dagilim', ad: t, neden: 'toplam_tutmuyor' });
-    }
-    if (!moqKural[t]) continue;
-    if (adetler === null) { eksikDagilim.push(t); continue; }
-    adetler.forEach(function (v, i) { if (v < moqKural[t]) ihlaller.push({ tur: t, asgari: tam(moqKural[t]), verilen: tam(v), sira: i + 1 }); });
-  }
-  const moq = {
-    kurallar: { siparis: moqKural.siparis ? tam(moqKural.siparis) : null, renk: moqKural.renk ? tam(moqKural.renk) : null, tasarim: moqKural.tasarim ? tam(moqKural.tasarim) : null },
-    ihlaller,
-    eksik_dagilim: eksikDagilim,
-  };
   // Faz 2: onaylı reçete yoksa "tahmini" işaretli ürün/kategori/seçenek: hesap yapılır, teklif kaydı yok.
-  const tahmini = kurallar.filter(function (kx) { return kx.x.tahmini === true; }).map(function (kx) { return kx.yer; });
+  const kategori = tanim.kategori !== undefined ? al(katalog.kategoriler || {}, tanim.kategori) : null;
+  const isaretler = [{ x: tanim, yer: { tur: 'urun' } }].concat(kategori ? [{ x: kategori, yer: { tur: 'kategori', kategori: tanim.kategori } }] : [],
+    u.alanlar.filter(function (a) { return secilen[a.ad]; }).map(function (a) { return { x: secilen[a.ad], yer: { tur: 'secenek', alan: a.ad, secenek: secilen[a.ad].ad } }; }));
+  const tahmini = isaretler.filter(function (kx) { return kx.x.tahmini === true; }).map(function (kx) { return kx.yer; });
   // F1-e: girilmiş ama hiçbir hesabın okumadığı sayı alanları (ör. metre fiyatlı kumaşta GSM fiyatı etkilemez).
   const okunmayanAlanlar = u.alanlar.filter(function (a) { return a.tur === 'sayi' && sayilar[a.ad] !== null && !okunanAlanlar.has(a.ad); }).map(function (a) { return a.ad; });
   const ortak = {
@@ -4567,11 +4418,8 @@ function hesaplaIc(katalog, istek, ozetler) {
     secimler,
     kullanilan_parametreler: parametreGoruntuleri,
     bayat_parametreler: parametreGoruntuleri.filter(function (g) { return g.bayat; }).map(function (g) { return g.ad; }),
-    moq,
     tahmini,
     okunmayan_alanlar: okunmayanAlanlar,
-    renk_dagilimi: istek.renk_dagilimi === undefined ? null : istek.renk_dagilimi.slice(),
-    tasarim_dagilimi: istek.tasarim_dagilimi === undefined ? null : istek.tasarim_dagilimi.slice(),
     damga: damga(ozetler),
   };
   if (eksikler.length) {
@@ -4634,7 +4482,7 @@ function hesaplaIc(katalog, istek, ozetler) {
 }
 
 // Faz 2 (3 Kasım): beden (ya da başka seçim alanı) dağılımlı sipariş. Her seçenek ayrı hesaplanır; sipariş adedi
-// TOPLAM adettir (sabit ve parti giderleri bütün siparişe dağılır, MOQ siparişin toplamına bakar). Satır toplamı =
+// TOPLAM adettir (sabit ve parti giderleri bütün siparişe dağılır). Satır toplamı =
 // birim fiyat × o seçeneğin adedi; ortalama birim fiyat = genel toplam ÷ toplam adet (4 hane). Biri hesaplanamazsa
 // toplam yok (hata önce, sonra fiyat yok).
 function dagilimHesapla(katalog, istek, alan, adetler) {
@@ -5055,14 +4903,9 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     // F1 / Faz 2 (3 Kasım)
     KAR_ESASI_GECERSIZ: 'Kâr esası geçersiz (maliyet üzerine ya da satış üzerinden)',
     TEKLIF_BAYAT_FIYAT: 'Eski fiyat var: teklif kaydı alınamaz, önce fiyatı yenileyin',
-    TEKLIF_MOQ: 'Sipariş MOQ altında ya da renk/tasarım dağılımı eksik: teklif kaydı alınamaz (istisna yalnız yetkili onayıyla, CRM\'de)',
     TEKLIF_TAHMINI: 'Sarfiyat tahmini (onaylı reçete yok): teklif kaydı alınamaz',
     KALEM_OZELLIGI_EKSIK: 'Kalemin zorunlu özelliği eksik',
     PARTI_BUYUKLUGU_GECERSIZ: 'Parti büyüklüğü pozitif tam sayı olmalı',
-    ISLEM_ADI_GECERSIZ: 'İşlem adı geçersiz (küçük harf, rakam, _ ; örn. boyama)',
-    ISLEM_ESASI_GECERSIZ: 'İşlem ücret esası geçersiz (işleme giren ya da çıkan kilo)',
-    ISLEM_FIRESI_GECERSIZ: 'İşlem firesi 0 ile %100 arasında olmalı (%100 hariç)',
-    MOQ_GECERSIZ: 'MOQ geçersiz (sipariş, renk ya da tasarım için pozitif tam sayı)',
     SECENEK_OZELLIGI_YOK: 'Reçetenin okuduğu özellik seçilen seçenekte tanımlı değil',
     DAGILIM_GECERSIZ: 'Dağılım adetleri pozitif tam sayı olmalı',
     DAGILIM_ALANI_GECERSIZ: 'Dağılım alanı ürünün bir seçim alanı olmalı',
@@ -5587,8 +5430,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       for (const x of liste || []) {
         if (x.tip === 'formul') formulden([x], yer + ' kalem ' + x.kalem);
         else ekle(x.deger, yer + ' kalem ' + x.kalem);
-        // F1: parti büyüklüğü, işlem firesi ve en az işlem bedeli de kalemin okuduğu parametrelerdir.
-        for (const oz of ['parti_buyuklugu', 'fire', 'asgari_tutar']) if (x[oz] !== undefined) ekle(x[oz], yer + ' kalem ' + x.kalem);
+        // F1: parti büyüklüğü de kalemin okuduğu parametredir.
+        if (x.parti_buyuklugu !== undefined) ekle(x.parti_buyuklugu, yer + ' kalem ' + x.kalem);
       }
     };
     const govde = function (u, yer) {
@@ -6547,13 +6390,13 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   const PARA = ['EUR', 'TRY', 'USD'];
   // Gövde düzeyinde değiştirilebilen alanlar (diziler ayrı işlemlerle).
   const GOVDE_YAMA = {
-    urun: ['label_tr', 'label_en', 'para_birimi', 'aciklama', 'kur', 'yuvarlama_adimi', 'kategori', 'kumas_sutunu', 'kumas_sutun_alani', 'moq', 'tahmini', 'dagilim_alani'],
-    kategori: ['label_tr', 'label_en', 'aciklama', 'moq', 'tahmini'],
+    urun: ['label_tr', 'label_en', 'para_birimi', 'aciklama', 'kur', 'yuvarlama_adimi', 'kategori', 'kumas_sutunu', 'kumas_sutun_alani', 'tahmini', 'dagilim_alani'],
+    kategori: ['label_tr', 'label_en', 'aciklama', 'tahmini'],
   };
   const NESNE_YAMA = {
     alan: ['ad', 'label_tr', 'label_en', 'birim', 'min', 'max', 'adim', 'aciklama', 'liste', 'satirlar', 'sutun', 'sutun_alani', 'kumas_ozelligi'],
-    secenek: ['ad', 'label_tr', 'label_en', 'birim', 'fiyat', 'kumas_eni_cm', 'aciklama', 'sutun', 'ozellikler', 'moq', 'tahmini', 'icerir'],
-    kalem: ['kalem', 'label_tr', 'label_en', 'deger', 'matrah', 'aciklama', 'ifade', 'ara_toplama_girer', 'parti_buyuklugu', 'islem', 'fire', 'esas', 'asgari_tutar'],
+    secenek: ['ad', 'label_tr', 'label_en', 'birim', 'fiyat', 'kumas_eni_cm', 'aciklama', 'sutun', 'ozellikler', 'tahmini'],
+    kalem: ['kalem', 'label_tr', 'label_en', 'deger', 'matrah', 'aciklama', 'ifade', 'ara_toplama_girer', 'parti_buyuklugu'],
     ara_deger: ['ad', 'ifade', 'birim', 'label_tr', 'label_en'],
   };
   const AD_ALANLARI = ['ad', 'kalem'];
@@ -6653,13 +6496,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       const v = yama[a];
       if (a === 'kategori' && v && !kendi(y.kategoriler, v)) throw hata('KATEGORI_YOK', { ad: v });
       if (a === 'para_birimi' && PARA.indexOf(v) === -1) throw hata('PARA_BIRIMI_GECERSIZ', { para_birimi: v });
-      // MOQ sözlüğü: boş boyut atılır, hiç kalmazsa alan silinir; tahmini yalnız true olarak durur.
-      if (a === 'moq') {
-        const m = {};
-        for (const t of Object.keys(v || {})) if (v[t] !== '' && v[t] !== null && v[t] !== undefined) m[t] = String(v[t]);
-        if (Object.keys(m).length) g.moq = m; else delete g.moq;
-        continue;
-      }
+      // Tahmini yalnız true olarak durur.
       if (a === 'tahmini') { if (v === true) g.tahmini = true; else delete g.tahmini; continue; }
       if (v === '' || v === null || v === undefined) {
         if (a === 'label_tr') g.label_tr = yer.ad; else delete g[a];
@@ -6742,7 +6579,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   }
   // Kalem tipi değişince: formül ifadesi ister, tipli kalem parametre (deger) ister; matrah yalnız yüzdede.
   function kalemTipiDegistir(k, yer, yol, tip) {
-    if (['adet_basina', 'kg_basina', 'yuzde', 'formul', 'siparis_basina', 'parti_basina', 'islem'].indexOf(tip) === -1) throw hata('TUR_GECERSIZ', { tip });
+    if (['adet_basina', 'kg_basina', 'yuzde', 'formul', 'siparis_basina', 'parti_basina'].indexOf(tip) === -1) throw hata('TUR_GECERSIZ', { tip });
     const y = taslak(k);
     if (nesneTuru(yol) !== 'kalem') throw hata('YOL_YOK', { yol });
     const n = izle(govde(y, yer), yol);
@@ -6756,7 +6593,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     }
     // Türe özgü alanlar yalnız kendi türünde kalır (çekirdek başka türde reddeder).
     if (tip !== 'parti_basina') delete n.parti_buyuklugu;
-    if (tip !== 'islem') { delete n.islem; delete n.fire; delete n.esas; delete n.asgari_tutar; } else if (!kendi(n, 'islem')) n.islem = n.kalem;
     return { katalog: y };
   }
 
@@ -6827,7 +6663,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     } else if (hesap === 'parametre') {
       if (!kendi(y0.parametreler, istek.parametre)) throw hata('PARAMETRE_YOK', { ad: istek.parametre });
       oge = { kalem, label_tr: etiket, tip: istek.tip || 'adet_basina', deger: istek.parametre };
-    } else if (['yuzde_kumas', 'yuzde_ara', 'adet', 'kg', 'siparis', 'islem'].indexOf(hesap) !== -1) {
+    } else if (['yuzde_kumas', 'yuzde_ara', 'adet', 'kg', 'siparis'].indexOf(hesap) !== -1) {
       const yuzde = hesap === 'yuzde_kumas' || hesap === 'yuzde_ara';
       const D = C.ondalik;
       let deger;
@@ -6839,10 +6675,8 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         ? { tur: 'oran', birim: 'oran', para_birimi: null, label_tr: etiket, aciklama: hesap === 'yuzde_kumas' ? 'kumaş maliyeti × oran' : 'ara toplam × oran', degerler: [] }
         : { tur: 'sabit', birim: hesap === 'adet' ? 'adet' : hesap === 'siparis' ? 'siparis' : 'kg', para_birimi: istek.para_birimi || g0.para_birimi || 'EUR', label_tr: etiket, degerler: [] };
       param = { ad: pAd, deger: metin };
-      const TIP = { adet: 'adet_basina', kg: 'kg_basina', siparis: 'siparis_basina', islem: 'islem' };
+      const TIP = { adet: 'adet_basina', kg: 'kg_basina', siparis: 'siparis_basina' };
       oge = { kalem, label_tr: etiket, tip: yuzde ? 'yuzde' : TIP[hesap], deger: pAd };
-      // Boya/terbiye: işlem adı kalemin kısa adı; fire ve esas sonradan kalem satırında seçilir.
-      if (hesap === 'islem') oge.islem = kalem;
       if (hesap === 'yuzde_ara') oge.matrah = 'ara_toplam';
       // Kumaş yüzdesinde biçim (toplamsal varsayılan); zincir yalnız kumaş matrahında.
       const bicim = istek.bicim || 'toplamsal';
@@ -6891,10 +6725,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
   const ek = { urun: null, kategori: null, yeniUrun: { ad: '', label_tr: '', baslangic: '', kategori: '' }, yeniKategori: { ad: '', label_tr: '' } };
   const TURLER = [['sayi', 'Sayı (elle yazılır)'], ['secim', 'Seçim (seçenekli)'], ['kumas', 'Kumaş (fiyatı listeden)']];
   const TIPLER = [['adet_basina', 'adet başına tutar'], ['kg_basina', 'kg başına tutar'], ['siparis_basina', 'sipariş başına (adede bölünür)'], ['parti_basina', 'parti başına (adede bölünür)'],
-    ['islem', 'işlem: boya/terbiye (kg × ücret)'], ['yuzde', 'yüzde (oran)'], ['formul', 'formül']];
-  // Boya/terbiye ücretinin uygulandığı kilo (kullanıcı kararı: işleme giren kilo varsayılan).
-  const ESASLAR = [['', 'işleme giren kg'], ['cikis_kg', 'işlemden çıkan kg']];
-  const MOQ_TURLERI = [['siparis', 'Sipariş MOQ (adet)'], ['renk', 'Renk başına MOQ'], ['tasarim', 'Tasarım başına MOQ']];
+    ['yuzde', 'yüzde (oran)'], ['formul', 'formül']];
   const MATRAHLAR = [['', 'kumaş maliyetinin'], ['ara_toplam', 'ara toplamın']];
   // Kumaş yüzdesinin biçimi: toplamsal kumaşa ayrı satır; zincir önceki firelerin üstüne.
   const BICIMLER = [['toplamsal', 'Kumaşa ayrı'], ['zincir_carpan', 'Zincir × (1 + oran)'], ['zincir_bolen', 'Zincir ÷ (1 − oran)']];
@@ -6939,9 +6770,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     yuzde: function (p) { return p.tur === 'oran'; },
     siparis_basina: function (p) { return p.tur === 'sabit' && p.birim === 'siparis' && !!p.para_birimi; },
     parti_basina: function (p) { return p.tur === 'sabit' && p.birim === 'parti' && !!p.para_birimi; },
-    islem: function (p) { return p.tur === 'sabit' && p.birim === 'kg' && !!p.para_birimi; },
     parti_buyuklugu: function (p) { return p.tur === 'sabit' && p.birim === 'adet' && !p.para_birimi; },
-    fire: function (p) { return p.tur === 'oran'; },
   };
   function parametreSecenekleri(tip, secili) {
     const k = api.durum.katalog;
@@ -7059,10 +6888,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         }), 'kategorideki kumaş listesinin hangi fiyatı (Boyalı, Baskılı...)'));
       }
     }
-    // MOQ ve tahmini işaret (F1-d, Faz 2): kural kutuda yalnız girdi; istisna onayı CRM'dedir.
-    for (const t of MOQ_TURLERI) {
-      kutular.push(alan(t[1], sayi(g.moq && g.moq[t[0]], o + 'moq-' + t[0], function (v) { g2({ moq: Object.assign({}, g.moq, { [t[0]]: v }) }, t[1]); }), t[0] === 'siparis' ? 'boş = kural yok' : null));
-    }
+    // Tahmini işaret (Faz 2): onaylı reçete yoksa teklif kaydı alınmaz.
     kutular.push(el('label', { sinif: 'onay', 'data-urun-editor': 'tahmini' }, el('input', { type: 'checkbox', checked: g.tahmini === true, onchange: function (e) { g2({ tahmini: e.target.checked }, 'tahmini sarfiyat'); } }), ' Sarfiyat tahmini (onaylı reçete yok; teklif kaydı alınmaz)'));
     if (yer.tur === 'urun') {
       const secimler = (g.alanlar || []).filter(function (a) { return a.tur === 'secim'; });
@@ -7222,7 +7048,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     ['adet', 'Adet başına tutar'],
     ['kg', 'kg başına tutar'],
     ['siparis', 'Sipariş başına sabit tutar (kalıp, klişe; adede bölünür)'],
-    ['islem', 'Boya/terbiye işlemi (kg ücreti; fire kalemde)'],
     ['parametre', 'Var olan bir parametreyle'],
     ['formul', 'Formülle (ileri)'],
   ];
@@ -7240,7 +7065,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
       alan('Nasıl hesaplanır', secim(HESAPLAR, f.hesap, function (v) { f.hesap = v; f.acik = true; yeniden(); }, { 'data-yeni-kalem': 'hesap' })),
     ];
     const yuzde = f.hesap === 'yuzde_kumas' || f.hesap === 'yuzde_ara';
-    if (yuzde || f.hesap === 'adet' || f.hesap === 'kg' || f.hesap === 'siparis' || f.hesap === 'islem') {
+    if (yuzde || f.hesap === 'adet' || f.hesap === 'kg' || f.hesap === 'siparis') {
       kutular.push(alan(yuzde ? 'Yüzde (%)' : 'Tutar', kutu('deger', { inputMode: 'decimal', placeholder: yuzde ? '3' : '1,5', 'data-yeni-kalem': 'deger' }), yuzde ? '3 yazarsanız %3' : null));
       if (f.hesap === 'yuzde_kumas') {
         if (!f.bicim) f.bicim = Z().kumasBicimi(k, yer);
@@ -7302,12 +7127,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     }
     if (x.tip === 'parti_basina') {
       kutular.push(alan('Parti büyüklüğü (parametre)', secim(parametreSecenekleri('parti_buyuklugu', x.parti_buyuklugu), x.parti_buyuklugu, function (v) { gun({ parti_buyuklugu: v }, 'parti büyüklüğü'); }, { 'data-kalem-parti': yol.join('.') }), 'adet; parti sayısı = adet ÷ parti, yukarı'));
-    }
-    if (x.tip === 'islem') {
-      kutular.push(alan('İşlem adı', metin(x.islem, o + 'islem', function (v) { gun({ islem: v }, 'işlem adı'); }), 'kumaş fiyatı bu işlemi içeriyorsa çifte sayılmaz'));
-      kutular.push(alan('Fire (parametre)', secim([['', '— yok —']].concat(parametreSecenekleri('fire', x.fire).slice(1)), x.fire, function (v) { gun({ fire: v }, 'işlem firesi'); }, { 'data-kalem-fire': yol.join('.') }), 'girişe oranla'));
-      kutular.push(alan('Ücret hangi kiloya', secim(ESASLAR, x.esas, function (v) { gun({ esas: v }, 'ücret esası'); }, { 'data-kalem-esas': yol.join('.') })));
-      kutular.push(alan('En az bedel (parametre)', secim([['', '— yok —']].concat(parametreSecenekleri('siparis_basina', x.asgari_tutar).slice(1)), x.asgari_tutar, function (v) { gun({ asgari_tutar: v }, 'en az bedel'); }), 'sipariş başına; altındaysa adede bölünür'));
     }
     if (x.tip === 'yuzde') {
       // Ara toplama geçince zincir biçimi kalkar (zincir yalnız kumaş matrahında).
@@ -7876,13 +7695,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     if (h.kar_esasi === 'satis') istek.kar_esasi = 'satis';
     const adet = sayiAl('adet', h.adet, 'Sipariş adedi');
     if (adet !== undefined) istek.adet = adet;
-    // Renk / tasarım dağılımı (MOQ): adetler "+" ya da boşlukla ayrılır; virgül ondalık olabileceği için ayırıcı değil.
-    for (const t of [['renk_dagilimi', 'Renk dağılımı'], ['tasarim_dagilimi', 'Tasarım dağılımı']]) {
-      const ham = String(h[t[0]] === undefined || h[t[0]] === null ? '' : h[t[0]]).trim();
-      if (ham === '') continue;
-      const parcalar = ham.split(/[\s;+]+/).filter(Boolean).map(function (p) { return sayiAl(t[0], p, t[1]); });
-      if (parcalar.every(function (p) { return p !== undefined; })) istek[t[0]] = parcalar;
-    }
     return { istek, hatalar };
   }
 
@@ -7909,8 +7721,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     }
     if (e.tur === 'kar_yuzde') return e.neden === 'marj_100_ve_ustu' ? 'Marj %: 100\'ün altında olmalı (satış üzerinden marj %100 olamaz).' : e.neden === 'negatif' ? 'Kâr %: eksi olamaz.' : 'Kâr %: boş.';
     if (e.tur === 'adet') return e.neden ? 'Sipariş adedi: pozitif tam sayı olmalı.' : 'Sipariş adedi: boş.';
-    if (e.tur === 'cifte_islem') return kalemAdi(urun, e.ad) + ': seçilen kumaş fiyatı "' + e.neden + '" işlemini zaten içeriyor; aynı maliyet iki kez sayılmaz. Kumaşın fiyat sütununu ya da kalemi düzeltin.';
-    if (e.tur === 'dagilim') return (e.ad === 'tasarim' ? 'Tasarım' : 'Renk') + ' dağılımı: ' + (e.neden === 'toplam_tutmuyor' ? 'toplamı sipariş adedine eşit olmalı.' : 'her parça pozitif tam sayı olmalı.');
     if (e.tur === 'parametre') {
       const p = katalog && kendi(katalog.parametreler, e.ad) ? katalog.parametreler[e.ad] : null;
       return 'Parametrenin hesap tarihinde yürürlükte değeri yok: ' + etiket(p, e.ad) + (etiket(p, e.ad) !== e.ad ? ' (' + e.ad + ')' : '') + '.';
@@ -7970,11 +7780,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     // Sabit giderler adede bölünür (miktara bağlı birim maliyet).
     if (s.tip === 'siparis_basina') return 'sipariş başına ' + kisa(s.parametre_degeri) + ' ' + p + ' ÷ ' + kisa(s.miktar) + ' adet' + cevir;
     if (s.tip === 'parti_basina') return kisa(s.miktar) + ' parti (' + s.adet + ' adet ÷ ' + kisa(s.parti_buyuklugu) + ', yukarı) × ' + kisa(s.parametre_degeri) + ' ' + p + ' ÷ ' + s.adet + ' adet' + cevir;
-    if (s.tip === 'islem') {
-      const ne = s.islem_esasi === 'cikis_kg' ? 'işlemden çıkan' : 'işleme giren';
-      const fire = !s.islem_fire || /^0(\.0*)?$/.test(s.islem_fire) ? '' : '; fire ' + yuzde(s.islem_fire);
-      return kisa(s.miktar) + ' kg (' + ne + fire + ') × ' + kisa(s.parametre_degeri) + ' ' + p + '/kg' + kur + (s.asgari_uygulandi ? ' · en az bedel uygulandı (sipariş başına, adede bölündü)' : '');
-    }
     // Zincir satırının matrahı o adımın tabanıdır: kumaş + önceki fireler.
     if (s.bicim === 'zincir_carpan' || s.bicim === 'zincir_bolen') {
       const taban = s.matrah_tutari === kumasTutari ? 'kumaş' : 'kumaş + önceki fireler';
@@ -8152,16 +7957,7 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         alan('Kâr nasıl?', esas, marj ? 'satış = maliyet ÷ (1 − marj); aynı yüzdede maliyet üzerine kârdan yüksek çıkar' : 'satış = maliyet × (1 + kâr)'),
         alan(marj ? 'Marj %' : 'Kâr %', api.sayiKutusu(ham.kar_yuzde, { placeholder: 'örn. 15', 'data-urun-alan': 'kar_yuzde' }, function (v) { ham.kar_yuzde = v; sonucCiz(); }), marj ? 'satış fiyatının yüzdesi; 100\'ün altında' : 'maliyetin yüzdesi'),
         alan('Sipariş adedi', api.sayiKutusu(ham.adet, { placeholder: 'örn. 1000', 'data-urun-alan': 'adet' }, function (v) { ham.adet = v; sonucCiz(); }), 'binlik ayırıcı yazmayın: 1000'));
-      // F1-d MOQ: renk/tasarım başına kural varsa (ürün, kategori ya da bir seçenekte) dağılım sorulur.
       const tanim = k.urunler[ek.urun];
-      const kat = tanim.kategori !== undefined && k.kategoriler ? k.kategoriler[tanim.kategori] : null;
-      const kuralli = [tanim, kat].concat(u.alanlar.reduce(function (a, x) { return a.concat(x.secenekler || []); }, []));
-      for (const t of [['renk', 'Renk dağılımı (adet)'], ['tasarim', 'Tasarım dağılımı (adet)']]) {
-        if (!kuralli.some(function (x) { return x && x.moq && x.moq[t[0]] !== undefined; })) continue;
-        const ad = t[0] + '_dagilimi';
-        ekle(form, alan(t[1], el('input', { type: 'text', inputMode: 'numeric', autocomplete: 'off', spellcheck: false, value: ham[ad] || '', placeholder: t[0] === 'renk' ? 'renk adetleri, + ile' : 'tasarım adetleri, + ile', 'data-urun-alan': ad,
-          oninput: function (e) { ham[ad] = e.target.value; sonucCiz(); } }), 'her ' + (t[0] === 'renk' ? 'renk' : 'tasarım') + ' ayrı; toplamı sipariş adedi'));
-      }
       // Beden gibi dağılım alanı (Faz 2): her seçeneğe adet; her biri toplam adetle hesaplanır (sonuçta tablo).
       const dAlan = dagilimAlani(u, tanim);
       if (dAlan) {
@@ -8282,18 +8078,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
         return el('li', { metin: 'BAYAT: ' + etiket(k.parametreler[g.ad], g.ad) + ' — son güncelleme ' + (g.alinma_tarihi ? A.tarihMetni(g.alinma_tarihi) : '?') + (g.gun_once === null ? '' : ' (' + g.gun_once + ' gün önce; ' + g.bayat_esigi + ' günden eskiyse bayat)') + '. ' + yeri(g.ad) + ' bölümünden yenileyin.' });
       })));
     }
-    // MOQ (F1-d): kural ve durum. İhlal fiyatı engellemez, teklif kaydını engeller (istisna onayı CRM'de).
-    const mk = s.moq.kurallar;
-    const moqEngel = s.moq.ihlaller.length > 0 || s.moq.eksik_dagilim.length > 0;
-    const moqSatirlari = [];
-    if (mk.siparis) moqSatirlari.push('sipariş en az ' + mk.siparis + ' adet' + (s.moq.ihlaller.some(function (x) { return x.tur === 'siparis'; }) ? ' — ALTINDA (' + s.adet + ' adet)' : ' ✓'));
-    for (const t of [['renk', 'renk'], ['tasarim', 'tasarım']]) {
-      if (!mk[t[0]]) continue;
-      const ih = s.moq.ihlaller.filter(function (x) { return x.tur === t[0]; });
-      moqSatirlari.push(t[1] + ' başına en az ' + mk[t[0]] + ' adet' + (s.moq.eksik_dagilim.indexOf(t[0]) !== -1 ? ' — ' + t[1] + ' dağılımını girin'
-        : ih.length ? ' — ALTINDA: ' + ih.map(function (x) { return x.sira + '. ' + t[1] + ' ' + x.verilen + ' adet'; }).join(', ') : ' ✓'));
-    }
-    if (moqSatirlari.length) ekle(kutu, el('ul', { sinif: 'liste ' + (moqEngel ? 'uyari-metni' : 'soluk'), 'data-urun-sonuc': 'moq' }, moqSatirlari.map(function (m) { return el('li', { metin: 'MOQ: ' + m }); })));
     // Faz 2: onaylı reçete yoksa "tahmini" (ürün, kategori ya da seçenek işaretli).
     if (s.tahmini.length) {
       const yerAdi = function (y) { return y.tur === 'urun' ? 'ürün' : y.tur === 'kategori' ? 'kategori' : etiket(u.alanlar.find(function (a) { return a.ad === y.alan; }), y.alan) + ': ' + y.secenek; };
@@ -8324,7 +8108,6 @@ window.KUTU_ORNEK_KATALOG = "{\n  \"ad\": \"Uydurma örnek katalog — TÜM SAYI
     // simülasyondur; teklif kaydı alınamaz (geçmiş tarih seçip bayatlıktan kaçılamasın). Çekirdek de reddeder.
     const engel = s.bayat_parametreler.length
       ? 'İç simülasyon: eski fiyat var, teklif kaydı alınamaz. Önce yukarıdaki BAYAT fiyatları yenileyin.'
-      : moqEngel ? 'MOQ altında ya da dağılım eksik: teklif kaydı alınamaz. İstisna yalnız yetkili onayıyla (CRM\'de).'
       : s.tahmini.length ? 'Tahmini sarfiyat: teklif kaydı alınamaz; önce reçete onaylanmalı.'
       : durum.hesap_tarihi !== api.bugun() ? 'İç simülasyon: hesap tarihi bugün değil; teklif kaydı yalnız bugünün fiyatlarıyla alınır.' : null;
     const teklifIndir = function () {
